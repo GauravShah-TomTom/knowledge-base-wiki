@@ -52,12 +52,14 @@ jobs:
       - name: Detect changes
         id: detect
         run: |
-          if [ -z "$(git status --porcelain raw/ wiki/log.jsonl)" ]; then
+          NEW=$(git ls-files --others --ignored --exclude-standard raw/ wiki/log.jsonl 2>/dev/null | wc -l | tr -d " ")
+          if [ "$NEW" -eq 0 ]; then
             echo "changes=false" >> "$GITHUB_OUTPUT"
             echo "No new blobs to ingest."
           else
             echo "changes=true" >> "$GITHUB_OUTPUT"
-            git status --short raw/ wiki/log.jsonl | head -10
+            echo "Files staged:"
+            git ls-files --others --ignored --exclude-standard raw/ wiki/log.jsonl | head -10
           fi
 
       - name: Commit and push to ingestion branch
@@ -71,8 +73,8 @@ jobs:
           git config user.email "wiki-bot@users.noreply.github.com"
 
           git checkout -b "$BRANCH"
-          git add raw/ wiki/log.jsonl
-          NEW_COUNT=$(git status --porcelain raw/ | grep -c '^?? \|^A ' || echo 0)
+          git add -f raw/ wiki/log.jsonl
+          NEW_COUNT=$(git diff --cached --numstat raw/ | wc -l | tr -d " ")
           git commit -m "ingest: pulled $NEW_COUNT new blob(s) from Azure raw/"
           git push origin "$BRANCH"
 
