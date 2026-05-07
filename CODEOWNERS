@@ -1,0 +1,10 @@
+# v1: only sensitive paths require explicit review.
+# Everything else is auto-mergeable when no CONFLICT marker is in the PR body.
+
+# Decision pages always need a human signoff
+wiki/decisions/* @GauravShah-TomTom
+
+# System pages — high signal, route to author for now
+wiki/systems/*   @GauravShah-TomTom
+
+# Anything in raw/ from auto-ingest is fine to skim-merge
