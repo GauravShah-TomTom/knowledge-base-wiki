@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Auto-refresh the QMD SQLite index after `git pull` (or any merge) on main.
+# Activated via: `git config core.hooksPath .githooks` (or scripts/install-hooks.sh).
+set -e
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+if [ "$BRANCH" != "main" ]; then
+    exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec "$REPO_ROOT/scripts/sync-index.sh"
