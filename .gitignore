@@ -19,6 +19,5 @@ config/personal_info.md
 scripts/__pycache__/
 docs/
 raw/
-wiki/
 scripts/.junie/
 .worktrees/

@@ -49,20 +49,20 @@ jobs:
       - name: Download new blobs
         run: bash scripts/azure-blob-download.sh
 
-      - name: Detect changes
+      - name: Detect new blobs
         id: detect
         run: |
-          NEW=$(git ls-files --others --ignored --exclude-standard raw/ wiki/log.jsonl 2>/dev/null | wc -l | tr -d " ")
+          NEW=$(git ls-files --others --ignored --exclude-standard raw/ 2>/dev/null | wc -l | tr -d " ")
           if [ "$NEW" -eq 0 ]; then
             echo "changes=false" >> "$GITHUB_OUTPUT"
             echo "No new blobs to ingest."
           else
             echo "changes=true" >> "$GITHUB_OUTPUT"
-            echo "Files staged:"
-            git ls-files --others --ignored --exclude-standard raw/ wiki/log.jsonl | head -10
+            echo "$NEW new raw file(s) downloaded into the working tree (gitignored, will not be committed):"
+            git ls-files --others --ignored --exclude-standard raw/ | head -10
           fi
 
-      - name: Commit and push to ingestion branch
+      - name: Create local ingestion branch
         if: steps.detect.outputs.changes == 'true'
         id: branch
         run: |
@@ -72,30 +72,100 @@ jobs:
           git config user.name "wiki-bot"
           git config user.email "wiki-bot@users.noreply.github.com"
 
+          # Local branch only — Claude will commit wiki/ pages and push.
+          # If Claude fails before push, no remote state changes and the next
+          # cron run picks up the same blobs again (idempotent retry).
           git checkout -b "$BRANCH"
-          git add -f raw/ wiki/log.jsonl
-          NEW_COUNT=$(git diff --cached --numstat raw/ | wc -l | tr -d " ")
-          git commit -m "ingest: pulled $NEW_COUNT new blob(s) from Azure raw/"
-          git push origin "$BRANCH"
+
+      - name: Run wiki-ingest skill (Claude Code)
+        if: steps.detect.outputs.changes == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-sonnet-4-6"
+          prompt: |
+            You are running inside a GitHub Actions workflow on local branch
+            `${{ steps.branch.outputs.branch }}` (not yet pushed). New raw files
+            exist in `raw/` in the working tree — these are gitignored. DO NOT
+            commit anything under `raw/`. They are there only for you to read.
+
+            Your task: ingest the new raw files and generate `wiki/` pages,
+            then commit and push.
+
+            1. Read the skills:
+                  .claude/skills/wiki-ingest/SKILL.md
+                  .claude/skills/wiki-ingest-per-note/SKILL.md
+                  .claude/skills/wiki-finalize-ingest/SKILL.md
+            2. Convert raw files to Markdown (Phase 0) using the conversion
+               scripts already in the repo.
+            3. Partition unprocessed notes:
+                  bash scripts/wiki-create-import-batches.sh
+            4. Process each batch following the per-note rules (topics,
+               WikiLinks, conflict detection — see the per-note SKILL.md for
+               authoritative rules).
+            5. Run the finalize step to merge logs and rebuild indexes.
+            6. Commit ONLY `wiki/` files and push to origin:
+                  git add wiki/
+                  git status --short              # confirm only wiki/ is staged
+                  git commit -m "wiki: ingest run #${{ github.run_number }}"
+                  git push -u origin ${{ steps.branch.outputs.branch }}
+               DO NOT use `git add -A`, `git add .`, or `git add raw/`.
+               `raw/` must NEVER enter git history.
+
+            Conflict detection: if a new page semantically contradicts an
+            existing one, mark the affected page with a `⚠️ CONFLICT` block
+            and quote both passages (per the per-note skill's line-72 rule).
+
+            Final step (mandatory): write your status to a file in `.import/`
+            for the workflow to read:
+                  echo "OK" > .import/conflict-status.txt
+               OR if you detected any conflicts:
+                  echo "CONFLICT: <comma-separated page paths>" > .import/conflict-status.txt
+            `.import/` is gitignored — DO NOT commit this file.
+
+            DO NOT open a PR yourself; the workflow will open it after you
+            push. DO NOT post any PR comments — the conflict-status.txt file
+            is the source of truth.
+
+      - name: Verify Claude pushed wiki/ commits
+        if: steps.detect.outputs.changes == 'true'
+        id: verify
+        run: |
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          # Fetch to see whether Claude pushed anything to this branch
+          if ! git fetch origin "$BRANCH" 2>/dev/null; then
+            echo "Branch $BRANCH does not exist on origin — Claude did not push."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          AHEAD=$(git rev-list --count "origin/main..origin/$BRANCH")
+          echo "Branch $BRANCH is $AHEAD commit(s) ahead of main."
+          if [ "$AHEAD" -eq 0 ]; then
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "committed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cleanup empty branch
+        if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'false'
+        run: |
+          echo "::warning::Claude did not push any wiki/ commits — nothing to PR."
+          echo "Branch ${{ steps.branch.outputs.branch }} will not be created on origin."
+          echo "Next cron run will re-attempt the same blobs (log.jsonl was not updated)."
 
       - name: Open PR
-        if: steps.detect.outputs.changes == 'true'
+        if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'true'
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BLOBS=$(git diff --stat HEAD~1 HEAD -- raw/ | head -20)
           PR_URL=$(gh pr create \
             --base main \
             --head "${{ steps.branch.outputs.branch }}" \
-            --title "ingest: blobs from run #${GITHUB_RUN_NUMBER}" \
+            --title "wiki: ingestion run #${GITHUB_RUN_NUMBER}" \
             --body "Auto-generated by the wiki-ingest cron Action.
 
-          Raw blobs from \`${AZURE_STORAGE_ACCOUNT}/${RAW_CONTAINER}\` are listed below. The next workflow step runs Claude Code to convert these into \`wiki/\` pages and commit them to this PR. If no conflicts are detected, the PR auto-merges; if \`⚠️ CONFLICT\` is raised, the PR is held for CODEOWNERS review.
-
-          \`\`\`
-          ${BLOBS}
-          \`\`\`
+          New raw blobs from \`${AZURE_STORAGE_ACCOUNT}/${RAW_CONTAINER}\` were processed by Claude Code into the \`wiki/\` pages in this PR. Raw inputs themselves stay in Azure Blob and are NOT committed to the repo. If no conflicts are detected, this PR auto-merges; if \`⚠️ CONFLICT\` is reported, the PR is held for CODEOWNERS review.
 
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           " \
@@ -104,69 +174,30 @@ jobs:
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Opened PR #$PR_NUMBER: $PR_URL"
 
-      - name: Run wiki-ingest skill (Claude Code)
-        if: steps.detect.outputs.changes == 'true'
-        uses: anthropics/claude-code-action@v1
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          model: claude-sonnet-4-6
-          prompt: |
-            You are running inside a GitHub Actions workflow on branch
-            `${{ steps.branch.outputs.branch }}`. New raw files have just been
-            pulled from Azure Blob into `raw/` and committed to this branch.
-            PR #${{ steps.pr.outputs.number }} is already open.
-
-            Your task: ingest the new raw files into `wiki/` by following the
-            `wiki-ingest` skill end-to-end.
-
-            1. Read `.claude/skills/wiki-ingest/SKILL.md`,
-               `.claude/skills/wiki-ingest-per-note/SKILL.md`, and
-               `.claude/skills/wiki-finalize-ingest/SKILL.md` so you understand
-               the full procedure.
-            2. Convert raw files to Markdown (Phase 0) using the VTT and EML
-               conversion scripts already in the repo.
-            3. Partition unprocessed notes via
-               `bash scripts/wiki-create-import-batches.sh`.
-            4. Process each batch following the per-note ingestion rules
-               (topics, WikiLinks, conflict detection — see the per-note
-               SKILL.md for the authoritative rules).
-            5. Run the finalize step to merge logs and rebuild indexes.
-            6. Commit the generated `wiki/` pages and updated `wiki/log.jsonl`
-               to this branch with a clear commit message.
-
-            Conflict handling: if a new page semantically contradicts an
-            existing one, mark the affected page with `⚠️ CONFLICT` and quote
-            both passages.
-
-            Final step (mandatory): post a comment on PR
-            #${{ steps.pr.outputs.number }} summarising the ingest. The comment
-            MUST start with one of:
-              - `Wiki ingestion complete — no conflicts.` (everything OK)
-              - `⚠️ CONFLICT` (one or more pages flagged — list them)
-            Use: `gh pr comment ${{ steps.pr.outputs.number }} --body "..."`.
-            The auto-merge gate keys off whether the comment contains
-            `⚠️ CONFLICT`, so this string must appear iff there is a real
-            conflict.
-
       - name: Auto-merge gate
-        if: steps.detect.outputs.changes == 'true'
+        if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER="${{ steps.pr.outputs.number }}"
-          if [ -z "$PR_NUMBER" ]; then
-            echo "No PR number captured — skipping auto-merge."
-            exit 0
+          STATUS_FILE=".import/conflict-status.txt"
+
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(cat "$STATUS_FILE")
+            echo "Conflict status: $STATUS"
+          else
+            echo "::warning::No conflict-status.txt written by Claude — defaulting to OK."
+            STATUS="OK"
           fi
 
-          COMMENTS=$(gh pr view "$PR_NUMBER" --json comments --jq '.comments[].body')
-          if echo "$COMMENTS" | grep -q "⚠️ CONFLICT"; then
-            echo "Conflict marker found — leaving PR #$PR_NUMBER for CODEOWNERS review."
+          if echo "$STATUS" | grep -q "^CONFLICT"; then
+            echo "Conflict reported — leaving PR #$PR_NUMBER for CODEOWNERS review."
             gh pr edit "$PR_NUMBER" --add-label "needs-review" || true
+            gh pr comment "$PR_NUMBER" --body "$STATUS" || true
           else
             echo "No conflicts — enabling auto-merge on PR #$PR_NUMBER."
             gh pr merge "$PR_NUMBER" --auto --squash || \
-              echo "Auto-merge could not be enabled (branch protection or already-merged)."
+              echo "::warning::Auto-merge could not be enabled (branch protection or already-merged)."
           fi
 
       - name: No-op message
