@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-08 04:55:52
+date: 2026-05-08 18:11:37
 ---
 # Concepts - index
 [[wiki/index|← Index]]
@@ -17,3 +17,6 @@ Technologies, standards, mental models, and domain vocabulary.
 - [[wiki/concepts/Knowledge Management|Knowledge Management (KM)]] — A discipline focused on organizational processes for creating, sharing, using, and managing knowledge and information to support organizational goals.
 - [[wiki/concepts/Lane Connectivity|Lane Connectivity]] — A map data attribute that describes which lane on one road element connects to which lane on an adjacent road element, particularly at junctions.
 - [[wiki/concepts/SECI Model|SECI Model]] — Knowledge conversion framework developed by Ikujiro Nonaka (Hitotsubashi University) describing how tacit and explicit knowledge interact in a spiral of organizational learning.
+- [[wiki/concepts/Seen-Sector Counts|Seen-Sector Counts]] — A per-sign property that records the count of vehicle observations grouped by the sector (angular bucket) from which a sign was seen.
+- [[wiki/concepts/Sign Orientation|Sign Orientation]] — The estimated direction (heading/bearing) that a traffic sign face points, as recorded by a data-collection vehicle at the time of observation.
+- [[wiki/concepts/Sign-to-Road Matching|Sign-to-Road Matching]] — The process of associating a detected traffic sign with a specific directed road element in the map.
