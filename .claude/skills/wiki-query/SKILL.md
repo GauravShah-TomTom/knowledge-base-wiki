@@ -15,3 +15,4 @@ When the user asks any question:
 Follow-up:
 - If the answer seems to be a valuable artifact (analysis, full recap, comparison, non-obvious connection between pieces of information), propose filing it as a new page in `wiki/conversations/` and updating the index. In that case, the title of the new page should be descriptive and include the date, e.g. `wiki/conversations/YYYY-MM-DD Descriptive Page Title For Discussion.md`.
 - Include the page in the index, with a one-liner summary of the content.
+- **To save: prefer `mcp__team-wiki__wiki_feedback_up` if the team-wiki MCP server is registered in this session.** It opens a PR via the dedicated GitHub App and auto-merges — no local commit needed. Fall back to writing the file locally (and asking the user to commit + push) only when the MCP tool isn't available.
