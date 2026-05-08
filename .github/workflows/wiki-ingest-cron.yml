@@ -82,7 +82,26 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--model claude-sonnet-4-6"
+          # Allow what the wiki-ingest skill needs (Bash for scripts/git/gh,
+          # standard file tools). Disallow the dangerous shapes — disallow
+          # takes precedence over allow in Claude Code.
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --allowed-tools Bash Read Write Edit Glob Grep Task
+            --disallowed-tools
+            "Bash(git push origin main*)"
+            "Bash(git push --force*)"
+            "Bash(git push -f*)"
+            "Bash(git reset --hard*)"
+            "Bash(git rebase*)"
+            "Bash(git add raw/*)"
+            "Bash(git add -A*)"
+            "Bash(git add .)"
+            "Bash(gh pr merge*)"
+            "Bash(gh repo delete*)"
+            "Bash(rm -rf /*)"
+            "Bash(rm -rf ~*)"
+          show_full_output: "true"
           prompt: |
             You are running inside a GitHub Actions workflow on local branch
             `${{ steps.branch.outputs.branch }}` (not yet pushed). New raw files
