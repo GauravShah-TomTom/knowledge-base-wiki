@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Index wiki/<topic>/*.md into Azure AI Search.
+"""Index wiki/<topic>/*.md into Azure AI Search with hybrid (BM25 + vector) retrieval.
 
-Idempotent — recreates the index schema if the existing one is stale, then
-upserts every wiki page. Auth via Azure CLI's logged-in identity (resource
-audience https://search.azure.com).
+For each page:
+  - Parse YAML frontmatter (extract feedback fields)
+  - Compute an embedding via Azure OpenAI's text-embedding-3-small deployment
+  - Push the doc with both `body` (for BM25) and `contentVector` (for vector search)
+
+Auth via Azure CLI's logged-in identity (resource audience https://search.azure.com).
 
 Required env:
-    AZURE_SEARCH_ENDPOINT      e.g. https://srch-team-wiki-ulkrw5.search.windows.net
-    AZURE_SEARCH_INDEX_NAME    e.g. team-wiki
-    AZURE_SEARCH_API_VERSION   e.g. 2024-07-01
+    AZURE_SEARCH_ENDPOINT             e.g. https://srch-team-wiki-ulkrw5.search.windows.net
+    AZURE_SEARCH_INDEX_NAME           e.g. team-wiki
+    AZURE_SEARCH_API_VERSION          e.g. 2024-07-01
+    AZURE_OPENAI_ENDPOINT             e.g. https://api.chatgpt.tomtom-global.com
+    AZURE_OPENAI_API_KEY              key for the embedding deployment
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT e.g. dep-text-embedding-3-small
+    AZURE_OPENAI_API_VERSION          e.g. 2024-10-21
 """
 import datetime
 import hashlib
-import json
 import os
 import pathlib
 import re
@@ -25,7 +31,9 @@ import yaml
 
 WIKI_DIR = pathlib.Path("wiki")
 TOPICS = ("competition", "concepts", "conversations", "decisions", "people", "problems", "projects", "systems")
-BATCH_SIZE = 100
+BATCH_SIZE = 50  # smaller batches because each doc carries a 1536-float vector
+EMBEDDING_DIMS = 1536  # text-embedding-3-small default
+MAX_BODY_CHARS = 8000  # truncate body for embedding only — full body still indexed for BM25
 
 
 def az_token() -> str:
@@ -47,18 +55,18 @@ def index_schema(name: str) -> dict:
             {"name": "topic", "type": "Edm.String", "filterable": True, "facetable": True, "retrievable": True, "searchable": False},
             {"name": "feedback_count_negative", "type": "Edm.Int32", "filterable": True, "sortable": True, "retrievable": True},
             {"name": "last_feedback_negative", "type": "Edm.String", "filterable": True, "sortable": True, "retrievable": True},
+            {
+                "name": "contentVector",
+                "type": "Collection(Edm.Single)",
+                "searchable": True,
+                "retrievable": False,
+                "dimensions": EMBEDDING_DIMS,
+                "vectorSearchProfile": "default-vector-profile",
+            },
         ],
-        "semantic": {
-            "configurations": [
-                {
-                    "name": "default",
-                    "prioritizedFields": {
-                        "titleField": {"fieldName": "title"},
-                        "prioritizedContentFields": [{"fieldName": "body"}],
-                        "prioritizedKeywordsFields": [{"fieldName": "topic"}],
-                    },
-                }
-            ]
+        "vectorSearch": {
+            "profiles": [{"name": "default-vector-profile", "algorithm": "default-hnsw"}],
+            "algorithms": [{"name": "default-hnsw", "kind": "hnsw"}],
         },
         "corsOptions": {"allowedOrigins": ["*"], "maxAgeInSeconds": 60},
     }
@@ -76,7 +84,6 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
 
 
 def make_doc_id(path: str) -> str:
-    # Azure Search keys must be URL-safe; SHA-1 hex is bulletproof.
     return hashlib.sha1(path.encode("utf-8")).hexdigest()
 
 
@@ -86,6 +93,21 @@ def title_from(body: str, fallback: str) -> str:
         if s.startswith("# "):
             return s.removeprefix("# ").strip()
     return fallback
+
+
+def embed_text(text: str) -> list[float]:
+    """Call Azure OpenAI's embedding deployment for a single string."""
+    endpoint = os.environ["AZURE_OPENAI_ENDPOINT"].rstrip("/")
+    deployment = os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
+    api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    api_key = os.environ["AZURE_OPENAI_API_KEY"]
+
+    url = f"{endpoint}/openai/deployments/{deployment}/embeddings?api-version={api_version}"
+    body = {"input": text[:MAX_BODY_CHARS] or " "}
+    r = requests.post(url, headers={"api-key": api_key, "Content-Type": "application/json"}, json=body, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"embedding call failed: {r.status_code} {r.text}")
+    return r.json()["data"][0]["embedding"]
 
 
 def collect_docs() -> list[dict]:
@@ -100,15 +122,20 @@ def collect_docs() -> list[dict]:
             text = path.read_text(encoding="utf-8")
             fm, body = parse_frontmatter(text)
             rel = str(path).replace("\\", "/")
+            title = title_from(body, path.stem)
+            embedding_input = f"{title}\n\n{body}".strip()
+            print(f"  embedding {rel} ...", file=sys.stderr)
+            vector = embed_text(embedding_input)
             doc = {
                 "@search.action": "mergeOrUpload",
                 "id": make_doc_id(rel),
                 "path": rel,
-                "title": title_from(body, path.stem),
+                "title": title,
                 "body": body.strip(),
                 "topic": topic,
                 "feedback_count_negative": int(fm.get("feedback_count_negative") or 0),
                 "last_feedback_negative": str(fm.get("last_feedback_negative") or ""),
+                "contentVector": vector,
             }
             docs.append(doc)
     return docs
@@ -140,7 +167,7 @@ def push_docs(endpoint: str, name: str, api_version: str, token: str, docs: list
             url,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json={"value": batch},
-            timeout=60,
+            timeout=120,
         )
         if r.status_code not in (200, 201, 207):
             print(f"POST docs failed: {r.status_code} {r.text}", file=sys.stderr)
@@ -155,8 +182,9 @@ def main() -> int:
 
     token = az_token()
     put_index(endpoint, name, api_version, token)
+    print("Computing embeddings + collecting docs ...")
     docs = collect_docs()
-    print(f"Collected {len(docs)} wiki docs.")
+    print(f"Collected {len(docs)} docs.")
     push_docs(endpoint, name, api_version, token, docs)
 
     print(f"\nDone — index `{name}` populated as of {datetime.datetime.now(datetime.timezone.utc).isoformat()}")
