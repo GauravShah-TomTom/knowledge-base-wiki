@@ -1,0 +1,290 @@
+name: Wiki staleness sweep (weekly)
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  id-token: write       # OIDC federation (kept for parity; not used here)
+  contents: write       # Push branches
+  pull-requests: write  # Open PRs + manage labels
+
+concurrency:
+  # Only one sweep at a time; cancel any older in-flight sweep.
+  group: wiki-staleness-sweep
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute sweep metadata
+        id: meta
+        run: |
+          # ISO week (e.g. 2026-W19) for the PR title.
+          ISO_WEEK=$(date -u +%G-W%V)
+          DATE=$(date -u +%Y%m%d)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH="staleness-sweep/${DATE}-${SHORT_SHA}"
+
+          echo "iso_week=$ISO_WEEK"   >> "$GITHUB_OUTPUT"
+          echo "date=$DATE"           >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH"       >> "$GITHUB_OUTPUT"
+
+      - name: Ensure wiki-staleness-sweep label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create the label if it does not already exist; ignore "already exists" failures.
+          gh label create "wiki-staleness-sweep" \
+            --color "FBCA04" \
+            --description "Weekly LLM-driven staleness sweep PR (needs human review)" \
+            || true
+
+      - name: Create local sweep branch
+        id: branch
+        run: |
+          BRANCH="${{ steps.meta.outputs.branch }}"
+
+          git config user.name  "wiki-bot"
+          git config user.email "wiki-bot@users.noreply.github.com"
+
+          # Local branch only — Claude commits + pushes if (and only if) it
+          # actually flagged something. If Claude finds nothing, no remote
+          # state changes and the workflow no-ops.
+          git checkout -b "$BRANCH"
+
+          # Workspace scratch dir for the digest + status file. Gitignored.
+          mkdir -p .import
+
+      - name: Run staleness sweep (Claude Code)
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Mirror wiki-ingest-cron.yml: the same allow/disallow shape.
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --allowed-tools Bash Read Write Edit Glob Grep Task
+            --disallowed-tools
+            "Bash(git push origin main*)"
+            "Bash(git push --force*)"
+            "Bash(git push -f*)"
+            "Bash(git reset --hard*)"
+            "Bash(git rebase*)"
+            "Bash(git add raw/*)"
+            "Bash(git add -A*)"
+            "Bash(git add .)"
+            "Bash(gh pr merge*)"
+            "Bash(gh repo delete*)"
+            "Bash(rm -rf /*)"
+            "Bash(rm -rf ~*)"
+          show_full_output: "true"
+          prompt: |
+            You are running inside a GitHub Actions workflow on local branch
+            `${{ steps.branch.outputs.branch }}` (not yet pushed). This is the
+            **weekly staleness sweep** — a periodic LLM-driven audit of the
+            wiki. You produce two distinct outputs (Section A digest + Section
+            B annotated changes) and then either commit + push, or report a
+            no-op. Today's UTC date is the value of `date -u +%Y-%m-%d`.
+
+            Skills you should read first for context:
+              .claude/skills/wiki-lint/SKILL.md
+              .claude/skills/wiki-query/SKILL.md
+              .claude/skills/wiki-ingest-per-note/SKILL.md
+            The per-note skill's line-72 conflict-detection rule (QMD top-k
+            similarity, threshold ~0.85, contradiction vs. near-duplicate)
+            is the authoritative definition of "contradicts" for Section B.
+
+            ---
+            ## Section A — User-feedback digest (read-only)
+
+            Find every page under `wiki/<topic>/*.md` (skip `_index.md` files)
+            whose frontmatter has `last_feedback_negative` set to a date
+            within the past 7 days — i.e. `last_feedback_negative >= TODAY - 7
+            days`, in UTC. For each match, capture:
+              - page path (relative to repo root)
+              - current `feedback_count_negative` (default 0 if missing)
+              - `last_feedback_negative` date
+
+            Do NOT modify these pages in Section A — Section A is a read-only
+            digest. Write the digest to `.import/section-a-digest.md` as a
+            Markdown table (columns: Page, feedback_count_negative,
+            last_feedback_negative). If there are no matches, write a single
+            line: `_No pages with negative feedback in the past 7 days._`
+
+            ---
+            ## Section B — LLM-driven staleness analysis
+
+            For each page under `wiki/<topic>/*.md` (skip `_index.md`),
+            considering:
+              - the rest of the wiki (use QMD via `mcp__plugin_qmd_qmd__query`
+                where helpful for similarity / cross-reference)
+              - the last 7 days of `wiki/log.jsonl` entries (each line is a
+                JSON object with a `date` field — filter to entries from the
+                last 7 UTC days)
+
+            identify pages whose claims appear contradicted, superseded, or
+            stale. **Prioritise pages with `feedback_count_negative > 0`** —
+            these have explicit human signal that something is wrong, so
+            spend more attention on them and be less conservative about
+            flagging.
+
+            For each flagged page:
+              1. Prepend a top-of-page `⚠️ STALE` admonition block (after the
+                 frontmatter, before the first heading) explaining what is
+                 outdated and why. **Cite** the contradicting page (with a
+                 `[[WikiLink]]`) or the log.jsonl entry (quote the relevant
+                 line). Keep the block concise — 2–6 sentences.
+              2. Add `stale_flagged_at: "<today YYYY-MM-DD>"` to the
+                 frontmatter (idempotent — if the field already exists,
+                 overwrite with today's date).
+
+            **Do NOT delete content.** Only add annotations. Do not edit the
+            cited contradicting page; only the stale page is annotated.
+
+            Keep a running summary as you go. After processing all pages,
+            write a Section B summary to `.import/section-b-summary.md` as a
+            Markdown table (columns: Page, Reason, Cited contradiction). If
+            there are no flagged pages, write: `_No staleness detected._`
+
+            ---
+            ## Final step (mandatory): commit, push, and write status
+
+            After Sections A and B are complete:
+
+            1. Decide whether the sweep is a **no-op**:
+               - No-op iff Section A had zero matches AND Section B flagged
+                 zero pages.
+            2. If no-op:
+                 echo "NOOP" > .import/sweep-status.txt
+               Do NOT commit, do NOT push, do NOT create a branch on origin.
+               The workflow will detect NOOP and exit cleanly.
+            3. If NOT no-op:
+                 - Stage ONLY `wiki/` files (the Section B annotations):
+                       git add wiki/
+                       git status --short    # confirm only wiki/ is staged
+                   DO NOT use `git add -A`, `git add .`, or `git add raw/`.
+                   `raw/` and `.import/` must NEVER enter git history.
+                 - If `git diff --cached --quiet` (i.e. nothing actually
+                   staged — Section A had matches but Section B made no file
+                   edits), then this is still a meaningful run because the
+                   digest itself is a deliverable. In that case, create an
+                   empty commit so the PR has a head:
+                       git commit --allow-empty -m "wiki: weekly staleness sweep — ${{ steps.meta.outputs.iso_week }} (digest only)"
+                   Otherwise:
+                       git commit -m "wiki: weekly staleness sweep — ${{ steps.meta.outputs.iso_week }}"
+                 - Push the branch:
+                       git push -u origin ${{ steps.branch.outputs.branch }}
+                 - Write status:
+                       echo "READY" > .import/sweep-status.txt
+
+            DO NOT open the PR yourself. The workflow opens it from the
+            digest + summary files you wrote. DO NOT add any auto-merge
+            label — this PR is intentionally held for human review.
+
+            `.import/` is gitignored — the digest, summary, and status files
+            stay local to this runner; the workflow reads them after you
+            finish.
+
+      - name: Read sweep status
+        id: status
+        run: |
+          STATUS_FILE=".import/sweep-status.txt"
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(tr -d '[:space:]' < "$STATUS_FILE")
+          else
+            echo "::warning::No sweep-status.txt written by Claude — defaulting to NOOP."
+            STATUS="NOOP"
+          fi
+          echo "Sweep status: $STATUS"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Claude pushed the sweep branch
+        if: steps.status.outputs.status == 'READY'
+        id: verify
+        run: |
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          if ! git fetch origin "$BRANCH" 2>/dev/null; then
+            echo "::warning::Status was READY but branch $BRANCH does not exist on origin."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          AHEAD=$(git rev-list --count "origin/main..origin/$BRANCH")
+          echo "Branch $BRANCH is $AHEAD commit(s) ahead of main."
+          if [ "$AHEAD" -eq 0 ]; then
+            # Allow-empty commit should give AHEAD=1; AHEAD=0 means push didn't happen.
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open PR
+        if: steps.status.outputs.status == 'READY' && steps.verify.outputs.pushed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="${{ steps.branch.outputs.branch }}"
+          ISO_WEEK="${{ steps.meta.outputs.iso_week }}"
+
+          # Fall back to a placeholder if a section file is missing — shouldn't
+          # happen if Claude followed the prompt, but defensive.
+          SECTION_A=".import/section-a-digest.md"
+          SECTION_B=".import/section-b-summary.md"
+          [ -f "$SECTION_A" ] || echo "_(Section A digest file missing — see workflow logs.)_" > "$SECTION_A"
+          [ -f "$SECTION_B" ] || echo "_(Section B summary file missing — see workflow logs.)_" > "$SECTION_B"
+
+          BODY_FILE="$(mktemp)"
+          {
+            echo "Auto-generated by the **wiki-staleness-sweep** weekly cron."
+            echo ""
+            echo "**This PR is intentionally held for human review** — unlike the ingest cron, it does NOT auto-merge."
+            echo ""
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "## Section A — User-feedback digest (last 7 days)"
+            echo ""
+            cat "$SECTION_A"
+            echo ""
+            echo "## Section B — LLM-driven staleness changes"
+            echo ""
+            cat "$SECTION_B"
+          } > "$BODY_FILE"
+
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "wiki: weekly staleness sweep — ${ISO_WEEK}" \
+            --body-file "$BODY_FILE" \
+            --label "wiki-staleness-sweep")
+          echo "Opened PR: $PR_URL"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: No-op message
+        if: steps.status.outputs.status != 'READY'
+        run: |
+          echo "Staleness sweep was a no-op — nothing flagged in Section A or Section B."
+          echo "No branch pushed, no PR opened."
+
+      - name: Sweep summary
+        if: always()
+        run: |
+          {
+            echo "## Wiki staleness sweep — ${{ steps.meta.outputs.iso_week }}"
+            echo ""
+            echo "- Status: \`${{ steps.status.outputs.status }}\`"
+            echo "- Branch: \`${{ steps.meta.outputs.branch }}\`"
+            if [ "${{ steps.status.outputs.status }}" = "READY" ] && [ "${{ steps.verify.outputs.pushed }}" = "true" ]; then
+              echo "- PR: ${{ steps.pr.outputs.url }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
