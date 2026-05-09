@@ -23,6 +23,7 @@ jobs:
       AZURE_SEARCH_ENDPOINT: https://srch-team-wiki-ulkrw5.search.windows.net
       AZURE_SEARCH_INDEX_NAME: team-wiki
       AZURE_SEARCH_API_VERSION: 2024-07-01
+      AZURE_SEARCH_API_KEY: ${{ secrets.AZURE_SEARCH_API_KEY }}
       AZURE_OPENAI_ENDPOINT: https://api.chatgpt.tomtom-global.com
       AZURE_OPENAI_API_VERSION: "2024-10-21"
       AZURE_OPENAI_EMBEDDING_DEPLOYMENT: dep-text-embedding-3-small

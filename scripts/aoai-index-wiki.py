@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """Index wiki/<topic>/*.md into Azure AI Search with hybrid (BM25 + vector) retrieval.
 
-For each page:
-  - Parse YAML frontmatter (extract feedback fields)
-  - Compute an embedding via Azure OpenAI's text-embedding-3-small deployment
-  - Push the doc with both `body` (for BM25) and `contentVector` (for vector search)
-
-Auth via Azure CLI's logged-in identity (resource audience https://search.azure.com).
+Auth: Azure AI Search admin API key (matches what the chat handler uses).
 
 Required env:
     AZURE_SEARCH_ENDPOINT             e.g. https://srch-team-wiki-ulkrw5.search.windows.net
     AZURE_SEARCH_INDEX_NAME           e.g. team-wiki
     AZURE_SEARCH_API_VERSION          e.g. 2024-07-01
+    AZURE_SEARCH_API_KEY              admin key from the search service
     AZURE_OPENAI_ENDPOINT             e.g. https://api.chatgpt.tomtom-global.com
     AZURE_OPENAI_API_KEY              key for the embedding deployment
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT e.g. dep-text-embedding-3-small
@@ -22,7 +18,6 @@ import hashlib
 import os
 import pathlib
 import re
-import subprocess
 import sys
 
 import requests
@@ -36,12 +31,8 @@ EMBEDDING_DIMS = 1536  # text-embedding-3-small default
 MAX_BODY_CHARS = 8000  # truncate body for embedding only — full body still indexed for BM25
 
 
-def az_token() -> str:
-    out = subprocess.check_output(
-        ["az", "account", "get-access-token", "--resource", "https://search.azure.com", "--query", "accessToken", "-o", "tsv"],
-        text=True,
-    )
-    return out.strip()
+def search_api_key() -> str:
+    return os.environ["AZURE_SEARCH_API_KEY"]
 
 
 def index_schema(name: str) -> dict:
@@ -141,12 +132,12 @@ def collect_docs() -> list[dict]:
     return docs
 
 
-def put_index(endpoint: str, name: str, api_version: str, token: str) -> None:
+def put_index(endpoint: str, name: str, api_version: str, api_key: str) -> None:
     url = f"{endpoint}/indexes/{name}?api-version={api_version}"
     body = index_schema(name)
     r = requests.put(
         url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={"api-key": api_key, "Content-Type": "application/json"},
         json=body,
         timeout=30,
     )
@@ -156,7 +147,7 @@ def put_index(endpoint: str, name: str, api_version: str, token: str) -> None:
     print(f"Index `{name}` schema is current.")
 
 
-def push_docs(endpoint: str, name: str, api_version: str, token: str, docs: list[dict]) -> None:
+def push_docs(endpoint: str, name: str, api_version: str, api_key: str, docs: list[dict]) -> None:
     if not docs:
         print("No docs to push.")
         return
@@ -165,7 +156,7 @@ def push_docs(endpoint: str, name: str, api_version: str, token: str, docs: list
         batch = docs[i : i + BATCH_SIZE]
         r = requests.post(
             url,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            headers={"api-key": api_key, "Content-Type": "application/json"},
             json={"value": batch},
             timeout=120,
         )
@@ -180,12 +171,12 @@ def main() -> int:
     name = os.environ["AZURE_SEARCH_INDEX_NAME"]
     api_version = os.environ.get("AZURE_SEARCH_API_VERSION", "2024-07-01")
 
-    token = az_token()
-    put_index(endpoint, name, api_version, token)
+    api_key = search_api_key()
+    put_index(endpoint, name, api_version, api_key)
     print("Computing embeddings + collecting docs ...")
     docs = collect_docs()
     print(f"Collected {len(docs)} docs.")
-    push_docs(endpoint, name, api_version, token, docs)
+    push_docs(endpoint, name, api_version, api_key, docs)
 
     print(f"\nDone — index `{name}` populated as of {datetime.datetime.now(datetime.timezone.utc).isoformat()}")
     return 0
