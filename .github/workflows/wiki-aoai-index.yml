@@ -34,6 +34,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
+
+      - name: Detect changed wiki pages
+        id: changed
+        if: github.event_name == 'push'
+        uses: tj-actions/changed-files@v45
+        with:
+          files: wiki/*/*.md
+          files_ignore: wiki/**/_*.md
+          separator: "\n"
+          json: false
 
       - name: Clear runner's pre-existing Azure context
         run: |
@@ -54,11 +65,21 @@ jobs:
         run: pip install --quiet requests pyyaml
 
       - name: Push schema + docs to Azure AI Search
+        env:
+          # Push events run incremental (only changed pages re-embedded).
+          # workflow_dispatch falls through with mode unset → script defaults to full.
+          WIKI_INDEX_MODE: ${{ github.event_name == 'push' && 'incremental' || 'full' }}
+          WIKI_CHANGED_FILES: |
+            ${{ steps.changed.outputs.added_files }}
+            ${{ steps.changed.outputs.modified_files }}
+          WIKI_DELETED_FILES: ${{ steps.changed.outputs.deleted_files }}
         run: python3 scripts/aoai-index-wiki.py
 
       - name: Summary
         run: |
+          MODE="${{ github.event_name == 'push' && 'incremental' || 'full' }}"
           echo "## Wiki indexed to Azure AI Search" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mode: \`$MODE\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Endpoint: \`$AZURE_SEARCH_ENDPOINT\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Index: \`$AZURE_SEARCH_INDEX_NAME\`" >> "$GITHUB_STEP_SUMMARY"

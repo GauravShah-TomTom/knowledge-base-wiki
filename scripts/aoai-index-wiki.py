@@ -13,6 +13,8 @@ Required env:
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT e.g. dep-text-embedding-3-small
     AZURE_OPENAI_API_VERSION          e.g. 2024-10-21
 """
+from __future__ import annotations
+
 import datetime
 import hashlib
 import os
@@ -101,35 +103,79 @@ def embed_text(text: str) -> list[float]:
     return r.json()["data"][0]["embedding"]
 
 
-def collect_docs() -> list[dict]:
-    docs = []
-    for topic in TOPICS:
-        topic_dir = WIKI_DIR / topic
-        if not topic_dir.is_dir():
-            continue
-        for path in topic_dir.glob("*.md"):
-            if path.name.startswith("_"):
+def doc_for_path(rel: str) -> dict | None:
+    """Build the index doc for a single wiki/<topic>/<file>.md path. Returns
+    None if the path is outside scope (wrong topic, _index.md, missing file)."""
+    parts = rel.split("/")
+    if len(parts) < 3 or parts[0] != "wiki" or parts[1] not in TOPICS:
+        return None
+    if not rel.endswith(".md"):
+        return None
+    fname = parts[-1]
+    if fname.startswith("_"):
+        return None
+    fpath = pathlib.Path(rel)
+    if not fpath.is_file():
+        return None
+
+    topic = parts[1]
+    text = fpath.read_text(encoding="utf-8")
+    fm, body = parse_frontmatter(text)
+    title = title_from(body, fpath.stem)
+    embedding_input = f"{title}\n\n{body}".strip()
+    print(f"  embedding {rel} ...", file=sys.stderr)
+    vector = embed_text(embedding_input)
+    return {
+        "@search.action": "mergeOrUpload",
+        "id": make_doc_id(rel),
+        "path": rel,
+        "title": title,
+        "body": body.strip(),
+        "topic": topic,
+        "feedback_count_negative": int(fm.get("feedback_count_negative") or 0),
+        "last_feedback_negative": str(fm.get("last_feedback_negative") or ""),
+        "contentVector": vector,
+    }
+
+
+def collect_docs(paths: list[str] | None = None) -> list[dict]:
+    """Embed and return docs for the given paths, or for the full wiki tree if
+    paths is None."""
+    if paths is None:
+        # Full walk
+        rels: list[str] = []
+        for topic in TOPICS:
+            topic_dir = WIKI_DIR / topic
+            if not topic_dir.is_dir():
                 continue
-            text = path.read_text(encoding="utf-8")
-            fm, body = parse_frontmatter(text)
-            rel = str(path).replace("\\", "/")
-            title = title_from(body, path.stem)
-            embedding_input = f"{title}\n\n{body}".strip()
-            print(f"  embedding {rel} ...", file=sys.stderr)
-            vector = embed_text(embedding_input)
-            doc = {
-                "@search.action": "mergeOrUpload",
-                "id": make_doc_id(rel),
-                "path": rel,
-                "title": title,
-                "body": body.strip(),
-                "topic": topic,
-                "feedback_count_negative": int(fm.get("feedback_count_negative") or 0),
-                "last_feedback_negative": str(fm.get("last_feedback_negative") or ""),
-                "contentVector": vector,
-            }
+            for path in topic_dir.glob("*.md"):
+                if path.name.startswith("_"):
+                    continue
+                rels.append(str(path).replace("\\", "/"))
+    else:
+        rels = paths
+
+    docs: list[dict] = []
+    for rel in rels:
+        doc = doc_for_path(rel)
+        if doc:
             docs.append(doc)
     return docs
+
+
+def deletion_docs(paths: list[str]) -> list[dict]:
+    """Build delete-action docs for paths that were removed from the wiki."""
+    out: list[dict] = []
+    for rel in paths:
+        if not rel.endswith(".md"):
+            continue
+        parts = rel.split("/")
+        if len(parts) < 3 or parts[0] != "wiki" or parts[1] not in TOPICS:
+            continue
+        if parts[-1].startswith("_"):
+            continue
+        out.append({"@search.action": "delete", "id": make_doc_id(rel)})
+    return out
 
 
 def put_index(endpoint: str, name: str, api_version: str, api_key: str) -> None:
@@ -166,6 +212,10 @@ def push_docs(endpoint: str, name: str, api_version: str, api_key: str, docs: li
         print(f"Pushed {i + len(batch)} / {len(docs)} docs.")
 
 
+def parse_path_list(env_value: str) -> list[str]:
+    return [line.strip() for line in env_value.splitlines() if line.strip()]
+
+
 def main() -> int:
     endpoint = os.environ["AZURE_SEARCH_ENDPOINT"].rstrip("/")
     name = os.environ["AZURE_SEARCH_INDEX_NAME"]
@@ -173,12 +223,27 @@ def main() -> int:
 
     api_key = search_api_key()
     put_index(endpoint, name, api_version, api_key)
-    print("Computing embeddings + collecting docs ...")
-    docs = collect_docs()
-    print(f"Collected {len(docs)} docs.")
-    push_docs(endpoint, name, api_version, api_key, docs)
 
-    print(f"\nDone — index `{name}` populated as of {datetime.datetime.now(datetime.timezone.utc).isoformat()}")
+    mode = os.environ.get("WIKI_INDEX_MODE", "full").lower()
+    changed = parse_path_list(os.environ.get("WIKI_CHANGED_FILES", ""))
+    deleted = parse_path_list(os.environ.get("WIKI_DELETED_FILES", ""))
+
+    if mode == "incremental":
+        print(f"Incremental run: {len(changed)} added/modified, {len(deleted)} deleted.")
+        docs = collect_docs(paths=changed) if changed else []
+        if deleted:
+            docs = docs + deletion_docs(deleted)
+        if not docs:
+            print("Nothing changed under wiki/<topic>/*.md — index unchanged.")
+        else:
+            push_docs(endpoint, name, api_version, api_key, docs)
+    else:
+        print("Full re-embed: walking entire wiki tree ...")
+        docs = collect_docs()
+        print(f"Collected {len(docs)} docs.")
+        push_docs(endpoint, name, api_version, api_key, docs)
+
+    print(f"\nDone — index `{name}` updated as of {datetime.datetime.now(datetime.timezone.utc).isoformat()} (mode={mode})")
     return 0
 
 
