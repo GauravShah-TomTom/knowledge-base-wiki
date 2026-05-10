@@ -46,4 +46,8 @@ for f in "${QMD_DB_DIR}/index.sqlite" \
 done
 
 echo ""
-echo "Done. Run scripts/qmd-sync-collections.sh to re-register collections."
+echo "Removing index.yml file..."
+rm -f "$HOME/.config/qmd/index.yml"
+
+echo ""
+echo "Done. Run qmd-sync-collections.sh to re-register collections."

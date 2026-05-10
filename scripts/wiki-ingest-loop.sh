@@ -558,9 +558,9 @@ run_phase_convert() {
 #   *  Anything else is treated as a fatal error and aborts the script.
 run_phase_partition() {
     echo "=== Phase 1 - PARTITION: partitioning new notes into batches ==="
-    echo "Running scripts/wiki-create-import-batches.sh..."
+    echo "Running scripts/system/wiki-create-import-batches.sh..."
     set +e
-    bash "$PROJECT_DIR/scripts/wiki-create-import-batches.sh" --max-files-per-batch "$MAX_FILES_PER_BATCH"
+    bash "$PROJECT_DIR/scripts/system/wiki-create-import-batches.sh" --max-files-per-batch "$MAX_FILES_PER_BATCH"
     local rc=$?
     set -e
 
@@ -590,13 +590,21 @@ run_phase_batches() {
         iteration=$(( iteration + 1 ))
         CURRENT_BATCH=$(( CURRENT_BATCH + 1 ))
 
+        if [ "$iteration" -gt "$total" ]; then
+            echo "WARN: Processed $iteration batches but only $total were expected." >&2
+            echo "      A claimed batch file in '.import/' may not have been removed." >&2
+            echo "      Stopping loop to avoid infinite loop." >&2
+            stopped_early=true
+            break
+        fi
+
         local remaining
         remaining=$(count_batch_files)
         echo ""
         if [ "$MAX_BATCHES_EXPLICIT" = true ]; then
             echo "=== Phase 2 - INGEST BATCHES: batch $CURRENT_BATCH of $effective_total  ($remaining total batches remaining) ==="
         else
-            echo "=== Phase 2 - INGEST BATCHES: batch $iteration of $total  ($remaining remaining, loop $CURRENT_BATCH/$MAX_BATCHES) ==="
+            echo "=== Phase 2 - INGEST BATCHES: batch $iteration of $total  ($remaining remaining, loop $CURRENT_BATCH/$effective_total) ==="
         fi
 
         local usage_before
@@ -687,6 +695,22 @@ run_phase_finalize() {
         echo "────────────────────────────────────────────────────────────────────"
         confirm_after_error "/wiki-finalize-ingest"
     fi
+    echo ""
+    echo "=== Phase 4 - POST-PROCESS: lint check and QMD sync ==="
+    echo "Running wiki-lint-check.py..."
+    set +e
+    python3 "$PROJECT_DIR/scripts/system/wiki-lint-check.py" -- batch-mode --fix-simple-errors --fix-orphans --format text
+    local lint_rc=$?
+    set -e
+    [ "$lint_rc" -ne 0 ] && echo "WARN: wiki-lint-check.py exited with status $lint_rc" >&2
+
+    echo "Running qmd-sync-collections.sh..."
+    set +e
+    bash "$PROJECT_DIR/scripts/system/qmd-sync-collections.sh"
+    local sync_rc=$?
+    set -e
+    [ "$sync_rc" -ne 0 ] && echo "WARN: qmd-sync-collections.sh exited with status $sync_rc" >&2
+
     echo ""
     echo "────────────────────────────────────────────────────────────────────"
     echo "Pipeline complete.  Current time: $(date '+%H:%M:%S')"

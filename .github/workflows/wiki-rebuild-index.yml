@@ -101,7 +101,7 @@ jobs:
         # qmd-sync-collections.sh registers each wiki/<topic>/ subdir as a
         # qmd collection (idempotent — skips ones that exist) and runs
         # `qmd update` at the end to refresh the structural index.
-        run: bash scripts/qmd-sync-collections.sh
+        run: bash scripts/system/qmd-sync-collections.sh
 
       - name: Generate embeddings
         # Local GGUF embedding (no external API). First run downloads models;

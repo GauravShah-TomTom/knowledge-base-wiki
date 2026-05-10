@@ -118,7 +118,7 @@ jobs:
             2. Convert raw files to Markdown (Phase 0) using the conversion
                scripts already in the repo.
             3. Partition unprocessed notes:
-                  bash scripts/wiki-create-import-batches.sh
+                  bash scripts/system/wiki-create-import-batches.sh
             4. Process each batch following the per-note rules (topics,
                WikiLinks, conflict detection — see the per-note SKILL.md for
                authoritative rules).
