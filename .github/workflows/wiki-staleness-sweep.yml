@@ -127,8 +127,8 @@ jobs:
 
             For each page under `wiki/<topic>/*.md` (skip `_index.md`),
             considering:
-              - the rest of the wiki (use QMD via `mcp__plugin_qmd_qmd__query`
-                where helpful for similarity / cross-reference)
+              - the rest of the wiki (use Read / Grep on `wiki/**` for
+                similarity and cross-reference checks)
               - the last 7 days of `wiki/log.jsonl` entries (each line is a
                 JSON object with a `date` field — filter to entries from the
                 last 7 UTC days)

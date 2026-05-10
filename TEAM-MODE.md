@@ -12,7 +12,7 @@ A team-shared knowledge base that ingests raw stuff (transcripts, emails, clips,
 
 | Repo | What it holds |
 |---|---|
-| `GauravShah-TomTom/knowledge-base-wiki` | The wiki content (`wiki/<topic>/*.md`), ingest scripts, ingest-cron + index workflows, qmd plugin install, `/.claude/skills/` for engineers' CLI flows. Forked from upstream personal-mode wiki. |
+| `GauravShah-TomTom/knowledge-base-wiki` | The wiki content (`wiki/<topic>/*.md`), ingest-cron + index workflows, `.claude/skills/` for engineers' CLI flows. Forked from upstream personal-mode wiki. |
 | `tomtom-internal/team-wiki-app` | The Next.js app: web upload UI, chat UI, MCP server, feedback endpoints, Terraform for all Azure infra. |
 
 ## Architecture
@@ -71,7 +71,7 @@ A team-shared knowledge base that ingests raw stuff (transcripts, emails, clips,
 - **Secrets:** Azure Key Vault (`kv-team-wiki-ulkrw5`) — all 10 secrets mounted into the Container App via `secretRef:` with managed-identity auth.
 - **Hosting:** Azure Container Apps (`ca-team-wiki`), `minReplicas: 1` to avoid jsdom cold-start. ACR pulls via managed identity.
 - **Ingest LLM:** `anthropics/claude-code-action@v1` with the user's Claude Pro `CLAUDE_CODE_OAUTH_TOKEN`, model pinned to `claude-sonnet-4-6`.
-- **Engineer-side:** team-wiki MCP server registration in Claude Code (per-user `twk_…` bearer); `wiki-ingest`, `wiki-query`, `wiki-feedback-up|down` skills in the wiki repo. Optional fallback: upstream's `qmd` plugin still works for personal-mode use.
+- **Engineer-side:** team-wiki MCP server registration in Claude Code (per-user `twk_…` bearer); `wiki-ingest`, `wiki-query`, `wiki-feedback-up|down` skills in the wiki repo.
 - **Bot:** dedicated GitHub App `team-wiki-feedback-bot` (Contents R/W, PRs R/W, Issues R/W). Authenticates per request via `@octokit/auth-app` using App ID + Installation ID + private key from Key Vault.
 
 ## Sequence (chat path)

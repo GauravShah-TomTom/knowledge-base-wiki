@@ -21,3 +21,10 @@ config/personal_info.md
 docs/
 raw/
 scripts/.junie/
+
+# team-mode local artifacts
+.DS_Store
+.playwright-mcp/
+chat-*.png
+.gitignore.team-mode-additions
+wiki/.obsidian/
