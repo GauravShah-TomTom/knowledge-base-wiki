@@ -54,12 +54,31 @@ A team-shared knowledge base that ingests raw stuff (transcripts, emails, clips,
 
 ## Functionality
 
-- **Ingest.** Drop files into the upload UI (drag-drop, URL paste, Confluence via stored Atlassian PAT) or use the MCP `wiki_add_*` tools from Claude Code. Lands in Azure Blob `raw/`. A 15-min cron Action picks up new blobs, dispatches `claude-code-action` running the `wiki-ingest` skill, opens a PR with raw + generated Markdown. Auto-merge unless the LLM flags `⚠️ CONFLICT`.
-- **Indexing.** A single Azure AI Search index, rebuilt by `wiki-aoai-index.yml` on push to `wiki/**` — BM25 + vector via `text-embedding-3-small`, hybrid retrieval. Used by both surfaces.
+- **Ingest.** Three input paths, all writing to Azure Blob `raw/`:
+  - **Upload UI** (`/upload`): drag-drop file → routed by extension to `raw/notes/` (`.md`), `raw/transcripts/` (`.vtt`), `raw/emails/` (`.eml`), `raw/scans/` (PDF/JPG/PNG), or `raw/clips/` (web URL paste, server-side Readability + Turndown). Confluence URL paste pulls via stored per-user Atlassian PAT and lands at `raw/confluence/`.
+  - **MCP add tools** from Claude Code: `wiki_add_slack_thread`, `wiki_add_note`, `wiki_add_clip`, `wiki_add_transcript` — engineer pastes content; tool writes Markdown to the corresponding `raw/<subfolder>/`.
+  - A 15-min cron Action (`wiki-ingest-cron.yml`) downloads new blobs, runs `claude-code-action` on the `wiki-ingest` skill, opens a PR with the generated `wiki/` pages. Auto-merge unless the per-note skill writes `CONFLICT: ...` to `.import/conflict-status.txt`.
+- **Indexing.** Single Azure AI Search index, rebuilt by `wiki-aoai-index.yml` on push to `wiki/**` — BM25 + vector via `text-embedding-3-small`, hybrid retrieval. Used by both chat UI and engineer MCP queries.
 - **Chat (web).** `/chat` runs `useChat` from the AI SDK. The route handler embeds the question, runs hybrid retrieval over Azure AI Search, stuffs top-8 pages as context, streams a GPT-5-mini answer through Vercel AI Elements components (Conversation / Message / Sources / PromptInput).
-- **Engineer (CLI).** Same wiki repo. Engineers register the team-wiki MCP server with their `twk_…` token; `mcp__team-wiki__wiki_query` and `mcp__team-wiki__wiki_get_page` hit the same Azure AI Search index the chat UI uses. Saves and feedback go through `mcp__team-wiki__wiki_feedback_up|down`.
-- **Feedback.** 👍 saves the conversation as `wiki/conversations/YYYY-MM-DD <slug>.md` via a PR opened by the `team-wiki-feedback-bot` GitHub App; auto-merges. 👎 increments `feedback_count_negative` on each cited page's frontmatter and opens a `wiki-feedback`-labeled issue. Same code path serves both the chat-UI buttons and the CLI `/wiki-feedback-up|down` skills.
-- **Staleness sweep.** Weekly Action runs Claude Code over the wiki, prioritises pages with negative feedback, opens one PR with `⚠️ STALE` markers for human review.
+- **Engineer (CLI).** Register the team-wiki MCP server with a `twk_…` token (issued at `/settings/tokens`). `mcp__team-wiki__wiki_query` and `mcp__team-wiki__wiki_get_page` hit the same Azure AI Search index the chat UI uses. Saves and feedback go through `mcp__team-wiki__wiki_feedback_up|down`.
+- **Feedback.**
+  - **👍** saves the conversation as `wiki/conversations/YYYY-MM-DD <slug>.md` via a PR opened by the `team-wiki-feedback-bot` GitHub App; auto-merges.
+  - **👎** commits a frontmatter merge directly to `main` (no PR, no issue) — one commit per cited page, incrementing `feedback_count_negative` and setting `last_feedback_negative` to today. The weekly staleness sweep digests these signals.
+  - Both surfaces (chat-UI buttons + CLI `/wiki-feedback-up|down` skills) share the same `lib/feedback/{save-conversation,flag-stale}.ts` code.
+- **Staleness sweep.** Weekly Action (`wiki-staleness-sweep.yml`, Mondays 09:00 UTC) runs Claude Code over the wiki, prioritises pages with `feedback_count_negative > 0`, opens one PR with `⚠️ STALE` markers + a digest table for human review.
+
+**MCP tool surface (8 tools, all `mcp__team-wiki__*`):**
+
+| Tool | Purpose |
+|---|---|
+| `wiki_query(query, top_k?)` | Hybrid BM25 + vector search |
+| `wiki_get_page(path)` | Fetch single page by exact path |
+| `wiki_add_slack_thread` | Save Slack thread → `raw/slack/` |
+| `wiki_add_note` | Save free-form note → `raw/notes/` |
+| `wiki_add_clip` | Save web article → `raw/clips/` |
+| `wiki_add_transcript` | Save meeting transcript → `raw/transcripts/` |
+| `wiki_feedback_up` | 👍 — save conversation page |
+| `wiki_feedback_down` | 👎 — flag cited pages stale |
 
 ## Tools & technology
 
@@ -82,7 +101,8 @@ A team-shared knowledge base that ingests raw stuff (transcripts, emails, clips,
 4. Server stuffs hits as context, streams GPT-5-mini reply through `createUIMessageStream`. A pass-through buffer strips inline `[[wiki/...]]` markers and stray empty bullets the LLM sometimes emits.
 5. After streaming ends, server emits `data-citations` with the cited page paths.
 6. UI renders streamed text via Streamdown (markdown), shows citations as a collapsible Sources panel.
-7. User clicks 👍 → POST `/api/chat/feedback` → `saveConversation()` → GitHub App opens a PR → auto-merge → next index workflow run picks up the new `wiki/conversations/...` page.
+7. User clicks 👍 → POST `/api/chat/feedback` → `saveConversation()` → GitHub App opens a PR → auto-merge → next `wiki-aoai-index` run picks up the new `wiki/conversations/...` page.
+8. User clicks 👎 → POST `/api/chat/feedback` → `flagStale()` → GitHub App commits frontmatter merge directly to `main` (one commit per cited page) → next staleness sweep prioritises these pages.
 
 Engineer CLI path follows the same retrieval but skips steps 4–6 — `mcp__team-wiki__wiki_query` returns top-k hits as raw context for Claude Code to synthesise locally.
 
@@ -166,6 +186,14 @@ Everything else (new workflows, new scripts, new skills, all `wiki/**` content) 
 
 **Long term:** the team-mode bundle is meant to be contributed back upstream (per the original spec). Once that lands, this whole section goes away.
 
+## Known gaps (v1)
+
+- **Standalone PDFs/images.** The upload UI routes PDF/JPG/PNG to `raw/scans/`, but the `wiki-ingest-per-note` skill's Phase 0 only converts `.vtt` and `.eml`. PDFs/images are described in the skill only as note-attachment files (in `_resources/`). A standalone PDF dropped in `raw/scans/` may not be ingested unless the cron's Claude session walks the directory and converts it itself. Workaround: drop PDFs alongside an `_resources/`-style note with the same basename, or paste extracted text as a `.md` note.
+- **App-level RBAC.** Single-tenant Entra means every TomTom employee can sign in, hit `/chat`, `/upload`, and click 👍 to merge a wiki page. No allow-list / group restriction. Fine for the innovation-week pilot, not for production rollout.
+- **Conversation history.** The chat is ephemeral — reload nukes the thread. No server-side persistence keyed by `entraOid` yet.
+- **Microsoft Graph integration.** Teams transcript browse + Outlook email search were in the original spec but not built. Engineers can still upload `.vtt`/`.eml` files manually via drag-drop.
+- **Atlassian OAuth (3LO).** Spec called for it; we shipped PAT instead. PATs don't rotate; users must re-paste when expired.
+
 ## Out of scope (v2)
 
-Event-driven ingest (Event Grid → Function App). Manager / cloud persona (remote MCP for ChatGPT/Claude.ai). Sensitive-content classifier on uploads. Per-blob PRs (currently per-cron-run). Conversation history persistence in chat. Mobile responsive pass.
+Event-driven ingest (Event Grid → Function App). Manager / cloud persona (remote MCP for ChatGPT/Claude.ai). Sensitive-content classifier on uploads. Per-blob PRs (currently per-cron-run). Mobile responsive pass.
