@@ -106,6 +106,65 @@ A team-shared knowledge base that ingests raw stuff (transcripts, emails, clips,
 
 Engineer CLI path follows the same retrieval but skips steps 4–6 — `mcp__team-wiki__wiki_query` returns top-k hits as raw context for Claude Code to synthesise locally.
 
+## Identities, apps & secrets
+
+Five identities power the system. Each has a clear job, scope, and rotation cadence.
+
+| Identity | What it does | Where credentials live | Rotation |
+|---|---|---|---|
+| **Entra app — `team-wiki` (Auth.js provider)** | Single-tenant OIDC sign-in for `/chat`, `/upload`, `/settings/*`. Issues an ID token; we extract `oid` (Entra Object ID) and use it as the user key. | App registration in Entra; client secret in Key Vault as `auth-entra-client-secret`. | Manual; secret expires per Entra policy (default 24 mo). |
+| **AAD app — `team-wiki-ci` (`39a79fb6-…`)** | OIDC federation for the wiki repo's GitHub Actions. Lets workflows `az login` without storing service-principal credentials in repo secrets. Has Search Service Contributor + Search Index Data Contributor on the AI Search resource. | Federated via OIDC trust on the GitHub repo. No secret stored anywhere — the `id-token: write` workflow permission produces a short-lived token per run. | None (token-less). |
+| **User-assigned managed identity — `id-team-wiki`** | The Container App's runtime identity. RBAC: Storage Blob/Table Data Contributor (raw/, the 3 tables), Key Vault Secrets User, AcrPull, Search Index Data Reader. Zero hard-coded credentials in app code. | Assigned to the Container App by Terraform; `DefaultAzureCredential` picks it up. | None (Azure-managed). |
+| **GitHub App — `team-wiki-feedback-bot`** | Opens PRs (👍 path) and commits to `main` (👎 path) on the wiki repo. Uses an *App identity*, not a PAT, so it's revocable without affecting any user. Permissions: Contents R/W, Pull requests R/W, Issues R/W. Installed only on `GauravShah-TomTom/knowledge-base-wiki`. | App ID, Installation ID, private key (PEM) live in Key Vault as `github-app-id`, `github-app-installation-id`, `github-app-private-key`. `lib/github/app-auth.ts` exchanges these for a short-lived installation access token per request via `@octokit/auth-app`. | Private key expires 1y by default; rotate via the App's settings page. |
+| **Per-user MCP bearer — `twk_<64hex>`** | Engineer's Claude Code → team-wiki MCP server. Issued at `/settings/tokens` (any signed-in TomTom user can issue their own). SHA-256 hashed at rest in `apitokens` Table; validation is one O(1) `getEntity()`. | Plain token shown to the user once at issuance; nothing stored on disk by the server. | User revokes via the same page. |
+
+**Two more credentials that aren't identities but matter:**
+
+| Secret | Purpose | Where it lives | Rotation |
+|---|---|---|---|
+| **`CLAUDE_CODE_OAUTH_TOKEN`** | Authenticates `anthropics/claude-code-action@v1` against the Claude Pro/Max subscription. Used by `wiki-ingest-cron.yml` and `wiki-staleness-sweep.yml` to drive a Claude session in CI without an Anthropic API key (no project budget needed). | GitHub repo secret on `knowledge-base-wiki` only. Generated locally with `claude setup-token`. | Long-lived OAuth refresh token, ~1y validity; regenerate with `claude setup-token` and update the repo secret. Internal precedent: same pattern Manan Pandya uses for the Dependabot review action across 14+ TomTom repos. |
+| **Azure OpenAI + Search keys** | `azure-openai-api-key` for chat + embeddings; `azure-search-api-key` for index writes from the indexer workflow. Container App reads both via `secretRef:` from KV; the wiki repo's CI reads them as repo secrets for the indexer run. | Key Vault (Container App) + GitHub repo secrets (CI). `azure-search-api-key` is Terraform-managed (sourced from the resource itself). | Manual key rotation; update both KV and repo secret. |
+
+**What the bot actually does, end-to-end:**
+
+```
+Chat UI 👍 click           Chat UI 👎 click
+       │                          │
+       ▼                          ▼
+/api/chat/feedback        /api/chat/feedback
+       │                          │
+       ▼                          ▼
+saveConversation()         flagStale()
+       │                          │
+       │                          ▼
+       │                  for each cited page:
+       │                    GET /repos/.../contents/<path>
+       │                    merge frontmatter (count++, date)
+       │                    PUT /repos/.../contents/<path>     ← App identity
+       │                                                          commit author = bot
+       ▼
+openWikiPr(): create branch + PUT a file + open PR + auto-merge ← App identity
+       │                                                          commit author = bot
+       ▼
+Auto-merge → push to main → wiki-aoai-index workflow re-embeds the new page
+```
+
+The same lib code (`lib/github/{app-auth,pr,issues}.ts`) backs both paths. App-based auth means commits show up in `git log` as `team-wiki-feedback-bot[bot]`, not as a human — useful for filtering.
+
+## Cost (rough monthly, EUR)
+
+| Component | ~Cost |
+|---|---|
+| Container App (1 replica, 0.5 vCPU, 1Gi memory) | 20–30 |
+| Storage (Blob + Tables, ~50 MB) | 1–2 |
+| ACR Basic | 5 |
+| Key Vault (Standard, ~10 ops/min) | <1 |
+| AI Search **Free** tier | 0 |
+| Log Analytics + App Insights (PerGB2018, 30d retention) | 5–10 |
+| **Total** | **~35–50 EUR/month** |
+
+GitHub Actions minutes used by cron + index + staleness sweep stay well under the 2000-min/month free tier on a private org repo.
+
 ## Setup (one-time, Azure side)
 
 ```sh
