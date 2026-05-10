@@ -7,9 +7,9 @@ description: Use when the user asks any question, requests research, or wants in
 
 When the user asks any question:
 
-- Use `mcp__plugin_qmd_qmd__query` to search across Wiki collections: `concepts`, `decisions`, `people`, `systems`, `competition`. For broad questions, also search `notes`.
-- Use `mcp__plugin_qmd_qmd__get` or `mcp__plugin_qmd_qmd__multi_get` to retrieve documents identified in step 1.
-- If QMD returns no results, fall back to reading `wiki/<type>/_index.md` directly, or `wiki/index.md` for top-level navigation.
+- **Prefer `mcp__team-wiki__wiki_query` when the team-wiki MCP server is registered** (team-mode setup). It runs hybrid BM25 + vector retrieval against the Azure AI Search index and returns top-k pages directly — same engine the team chat UI uses, no local SQLite needed. Use `mcp__team-wiki__wiki_get_page` to fetch a single page by path when you have a citation. Fall back to qmd only when the team-wiki MCP isn't registered.
+- Otherwise, use `mcp__plugin_qmd_qmd__query` to search across Wiki collections: `concepts`, `decisions`, `people`, `systems`, `competition`. For broad questions, also search `notes`. Use `mcp__plugin_qmd_qmd__get` or `mcp__plugin_qmd_qmd__multi_get` to retrieve identified documents.
+- If neither returns results, fall back to reading `wiki/<type>/_index.md` directly, or `wiki/index.md` for top-level navigation.
 - Synthesize an answer with citations: `[[wiki/decisions/title]]`, `[[wiki/systems/name]]`, etc.
 - **Stale-feedback awareness:** when citing a page, check its frontmatter. If `feedback_count_negative` is set and > 0, append an inline note next to that citation: `⚠️ This page has been flagged N× as potentially stale (last on <date>); treat its claims with caution and cross-reference other sources.` Don't drop the citation — readers still benefit from following it — just warn them.
 
