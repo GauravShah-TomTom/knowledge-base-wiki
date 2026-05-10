@@ -127,6 +127,29 @@ bash scripts/sync-index.sh           # initial index download (needs az login)
 # Try: /wiki-query "who is leading id index improvement"
 ```
 
+## Syncing from upstream
+
+This repo is a fork of `tomtom-forks/knowledge-base-wiki`, which moves quickly. The team-mode delta is mostly net-new files (zero conflict surface), so syncing is usually clean.
+
+```sh
+git fetch upstream
+git merge upstream/main
+# resolve any conflicts (see below), then:
+git push origin main
+```
+
+**Known recurring conflict surface (3 files):**
+
+| File | Reason | Resolution |
+|---|---|---|
+| `.gitignore` | We removed upstream's `wiki/` line because we track `wiki/` as team content. (Negation `!wiki/` can't reverse a directory-level ignore.) | Always keep our version (no `wiki/` line). |
+| `.claude/skills/wiki-ingest-per-note/SKILL.md` | We added a `[team-mode]` QMD-driven conflict-detection bullet *after* upstream's existing one. Pure addition — usually merges cleanly. | Keep both upstream's bullet and our `[team-mode]` block. |
+| `.claude/skills/wiki-query/SKILL.md` | We appended two bullets at the end (stale-feedback awareness; prefer MCP for save). Pure addition at end of list. | Keep both upstream's bullets and our two appended ones. |
+
+Everything else (new workflows, new scripts, new skills, all `wiki/**` content) is additive and conflict-free.
+
+**Long term:** the team-mode bundle is meant to be contributed back upstream (per the original spec). Once that lands, this whole section goes away.
+
 ## Out of scope (v2)
 
 Event-driven ingest (Event Grid → Function App). Manager / cloud persona (remote MCP for ChatGPT/Claude.ai). Sensitive-content classifier on uploads. Per-blob PRs (currently per-cron-run). Conversation history persistence in chat. Mobile responsive pass.
