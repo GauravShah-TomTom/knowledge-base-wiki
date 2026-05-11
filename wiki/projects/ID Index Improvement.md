@@ -3,7 +3,10 @@ type: project
 feedback_count_negative: 1
 last_feedback_negative: "2026-05-08"
 last_feedback_negative_conv: ""
+stale_flagged_at: "2026-05-11"
 ---
+
+> ⚠️ **STALE** — The opening sentence reads "Key cost-driven initiative for Q (2026)" — the quarter number is missing, suggesting an incomplete template substitution during ingestion. Per [[decisions/ID Index dedicated Go service]], the decision and POC were dated "~2026 Q1–Q2 (POC results presented 2026-05-07)". Human feedback flagged this page on 2026-05-08 (feedback_count_negative: 1); the quarter designation should be confirmed and filled in.
 
 # ID Index Improvement
 

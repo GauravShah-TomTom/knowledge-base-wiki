@@ -1,6 +1,9 @@
 ---
 type: system
+stale_flagged_at: "2026-05-11"
 ---
+
+> ⚠️ **STALE** — This page's Status section says "Production rollout **planned** as a key cost-driven initiative," but [[projects/ID Index Improvement]] states "POC complete; production rollout **underway**" and [[problems/ID Index RAM consumption]] states "production rollout **in progress**" — both as of 2026-05-07, the same source date. The word "planned" is inconsistent with the other two pages and likely reflects an ingestion-time wording difference from the same transcript. The actual status should be confirmed and harmonised across these three pages.
 
 # ID Index Service
 
