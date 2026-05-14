@@ -1,0 +1,51 @@
+name: Wiki feedback digest (weekly)
+
+on:
+  schedule:
+    # Monday 08:00 UTC — runs an hour before the staleness sweep (09:00 UTC)
+    # so the resulting digest issue is open when reviewers see Monday's PR.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  id-token: write       # OIDC for az login (read auditlog table)
+  contents: read
+  issues: write         # Open the digest issue
+
+concurrency:
+  group: wiki-feedback-digest
+  cancel-in-progress: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+
+    env:
+      AZURE_STORAGE_ACCOUNT: stteamwikiulkrw5
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Clear runner's pre-existing Azure context
+        run: |
+          az logout 2>/dev/null || true
+          az account clear 2>/dev/null || true
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Python deps
+        run: pip install --quiet azure-data-tables azure-identity
+
+      - name: Build digest + open issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/wiki-feedback-digest.py
