@@ -546,6 +546,19 @@ run_phase_convert() {
     set -e
     [ "$eml_rc" -ne 0 ] && { echo "WARN: convert-eml-to-md.py exited with status $eml_rc" >&2; had_error=true; }
 
+    # DOCX runs on notes/ (catch-all for general Word docs) AND transcripts/
+    # (defensive — engineers may drop transcript-shaped docx there).
+    for docx_dir in notes transcripts; do
+        echo "Converting DOCX files in raw/$docx_dir/ (requires pandoc)..."
+        set +e
+        python3 "$scripts_dir/system/convert-docx-to-md.py" \
+            --input-dir  "$PROJECT_DIR/raw/$docx_dir" \
+            --output-dir "$PROJECT_DIR/raw/$docx_dir/converted"
+        local docx_rc=$?
+        set -e
+        [ "$docx_rc" -ne 0 ] && { echo "WARN: convert-docx-to-md.py (raw/$docx_dir) exited with status $docx_rc" >&2; had_error=true; }
+    done
+
     echo ""
     if [ "$had_error" = true ]; then
         echo "Conversion finished with warnings.  Time: $(date '+%H:%M:%S')"

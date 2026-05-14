@@ -13,8 +13,10 @@ When asked to "ingest new raw notes" (or similar):
    ```bash
    python3 scripts/system/convert-vtt-to-md.py --input-dir raw/transcripts --output-dir raw/transcripts/converted
    python3 scripts/system/convert-eml-to-md.py --input-dir raw/emails --output-dir raw/emails/converted
+   python3 scripts/system/convert-docx-to-md.py --input-dir raw/notes --output-dir raw/notes/converted
+   python3 scripts/system/convert-docx-to-md.py --input-dir raw/transcripts --output-dir raw/transcripts/converted
    ```
-   These convert VTT transcript files and EML email files into Markdown so they are picked up by the batch importer. Skip silently if the input directories don't exist.
+   These convert VTT transcripts, EML emails, and DOCX documents into Markdown so they are picked up by the batch importer. The docx converter runs on both `raw/notes/` (catch-all for general Word docs) and `raw/transcripts/` (defensive — engineers may drop transcript-shaped docx there). Each converter skips silently if its input directory doesn't exist. The docx converter requires `pandoc` on PATH.
 2. **Partition** (run automatically): `bash scripts/system/wiki-create-import-batches.sh`
    - Default max batch size is 50 files. Override with `--max-size N` (e.g. `--max-size 20`).
    - This removes any old `.import/batch-import-*.txt` remnants and creates fresh ones.

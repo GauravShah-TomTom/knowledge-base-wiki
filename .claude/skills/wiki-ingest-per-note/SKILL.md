@@ -14,6 +14,10 @@ For each file you need to ingest, first use a sub-agent to convert it and any of
 - **`.vtt` transcripts** in `raw/transcripts/`:
   - run `python3 scripts/system/convert-vtt-to-md.py --input-dir raw/transcripts --output-dir raw/transcripts/converted`.
   - Ingest only `.md` files.
+- **`.docx` documents** in any `raw/<section>/` (typically `raw/notes/` — the catch-all for general Word docs):
+  - run `python3 scripts/system/convert-docx-to-md.py --input-dir raw/<section> --output-dir raw/<section>/converted`.
+  - Requires `pandoc` on PATH.
+  - Ingest only `.md` files.
 - **`.eml` emails** in `raw/emails/`:
   - run `python3 scripts/system/convert-eml-to-md.py --input-dir raw/emails --output-dir raw/emails/converted`.
   - Ingest only `.md` files.
