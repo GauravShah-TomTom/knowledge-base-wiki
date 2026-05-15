@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-15 16:47:15
+date: 2026-05-15 17:59:59
 ---
 # Competitors - index
 [[wiki/index|← Index]]
