@@ -26,5 +26,6 @@ scripts/.junie/
 .DS_Store
 .playwright-mcp/
 chat-*.png
+nav-*.png
 .gitignore.team-mode-additions
 wiki/.obsidian/
