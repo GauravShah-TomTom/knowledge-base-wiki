@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-15 16:47:15
+date: 2026-05-15 17:59:59
 ---
 # People - index
 [[wiki/index|← Index]]
@@ -8,4 +8,5 @@ date: 2026-05-15 16:47:15
 Colleagues, contacts, external stakeholders, and teams.
 
 - [[wiki/people/Gaurav Shah|Gaurav Shah]] — Engineer on the [[Lanes]] project.
+- [[wiki/people/Jose Martinez Teira|Jose Martinez Teira]] — Engineer with expertise in the [[HD Basemap]] lane modelling pipeline, specifically the [[Leg Boosting|leg boosting]] production pipeline that corrects missing road legs at junctions.
 - [[wiki/people/Souvik Mudi|Souvik Mudi]] — Team member on the [[Lanes]] project.
