@@ -61,6 +61,17 @@ def index_schema(name: str) -> dict:
             "profiles": [{"name": "default-vector-profile", "algorithm": "default-hnsw"}],
             "algorithms": [{"name": "default-hnsw", "kind": "hnsw"}],
         },
+        "semantic": {
+            "configurations": [
+                {
+                    "name": "default-semantic",
+                    "prioritizedFields": {
+                        "titleField": {"fieldName": "title"},
+                        "prioritizedContentFields": [{"fieldName": "body"}],
+                    },
+                }
+            ]
+        },
         "corsOptions": {"allowedOrigins": ["*"], "maxAgeInSeconds": 60},
     }
 
