@@ -48,6 +48,7 @@ def index_schema(name: str) -> dict:
             {"name": "topic", "type": "Edm.String", "filterable": True, "facetable": True, "retrievable": True, "searchable": False},
             {"name": "feedback_count_negative", "type": "Edm.Int32", "filterable": True, "sortable": True, "retrievable": True},
             {"name": "last_feedback_negative", "type": "Edm.String", "filterable": True, "sortable": True, "retrievable": True},
+            {"name": "superseded", "type": "Edm.Boolean", "filterable": True, "retrievable": True},
             {
                 "name": "contentVector",
                 "type": "Collection(Edm.Single)",
@@ -145,6 +146,7 @@ def doc_for_path(rel: str) -> dict | None:
         "topic": topic,
         "feedback_count_negative": int(fm.get("feedback_count_negative") or 0),
         "last_feedback_negative": str(fm.get("last_feedback_negative") or ""),
+        "superseded": bool(fm.get("superseded") or False),
         "contentVector": vector,
     }
 
