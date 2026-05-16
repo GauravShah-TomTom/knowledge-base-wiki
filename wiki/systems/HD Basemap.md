@@ -4,7 +4,7 @@ type: system
 
 # HD Basemap
 
-TomTom's HD (high-definition) map basemap product, containing detailed road geometry, lane models, and junction topology. Output is published via the [[Map Content Portal]] and is available as a layer in [[Orbis]].
+[[TomTom]]'s HD (high-definition) map basemap product, containing detailed road geometry, lane models, and junction topology. Output is published via the [[Map Content Portal]] and is available as a layer in [[Orbis]].
 
 ## Versioning
 
