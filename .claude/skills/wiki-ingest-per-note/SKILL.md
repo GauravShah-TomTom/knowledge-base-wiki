@@ -29,6 +29,7 @@ For each file you need to ingest, first use a sub-agent to convert it and any of
   1. Check if `<file_dir>/converted/<filename>.md` exists — if so, skip.
   2. Otherwise, convert to Markdown using the appropriate tool (do not install new tools!), or use LLM vision.
      Save the result as Markdown to `<file_dir>/converted/<filename>.md` with frontmatter: `source` (path to original), `converted` (now).
+  3. **For images of diagrams** (architecture sketches, flowcharts, whiteboard boxes-and-arrows): if the structure is clear enough, encode it as a [Mermaid](https://mermaid.js.org/) code block (`graph` / `flowchart` syntax) inside the `.md` so the rendered wiki page shows the actual diagram. Otherwise describe the diagram as a bulleted component-and-flow list.
 
 If you converted the attachment of a note, always append to the bottom of the source note:
 ```markdown
