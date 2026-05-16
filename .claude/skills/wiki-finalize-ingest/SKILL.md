@@ -47,15 +47,16 @@ If any exist, list them in a "Stubs still needing expansion" section so the user
 
 Present a table of all pages created/updated across all sessions (read from the just-merged session log data). 
 
-## Step 5 — Post-processing menu
+## Step 5 — Post-processing
 
-Use `AskUserQuestion` with `multiSelect: true`. Always run QMD before lint:
+Run the lint check for orphans, contradictions, and gaps:
 
-- **All (recommended)** — lint + QMD text + vector embedding; supersedes individual selections
-- **Lint** — health check: orphans, contradictions, gaps 
-- **QMD text re-index** (`qmd update`) — fast, keywords only
-- **QMD vector embedding** (`qmd update && qmd embed`) — slow, ~2 GB models; supersedes text-only if both selected
+```bash
+python3 scripts/wiki-lint-check.py
+```
+
+In team-mode, Azure AI Search reindexing is automatic — the `wiki-aoai-index` GitHub Action fires on every push to `main` that touches `wiki/**` and incrementally embeds the changed pages. Nothing to do at finalize time.
 
 ## Step 6 - End message
 
-After running the lint check or QMD do not suggest to run finalize again. Do propose to run `scripts/wiki-lint-check.py` if any problems were found during the lint check.
+After running the lint check do not suggest to run finalize again. Do propose to fix specific issues if the lint check found any.
