@@ -7,6 +7,8 @@ description: Use when the user asks to finalize an ingest, merge batch logs, or 
 
 > **When running as an agent** (dispatched by `wiki-ingest`, no user interaction available): at Step 0, abort with an error message if unclaimed batch files exist instead of using `AskUserQuestion`. At Step 5, run All steps without prompting.
 
+> **[team-mode]** The QMD options in Step 5 (`qmd update` / `qmd embed`) are no-ops in this fork — Azure AI Search reindexes automatically when `wiki-aoai-index` fires on push to `main`. Skip the QMD bullets; run lint only.
+
 ## Step 0 — Check state
 
 Before doing anything, verify there is something to finalize:
@@ -47,16 +49,15 @@ If any exist, list them in a "Stubs still needing expansion" section so the user
 
 Present a table of all pages created/updated across all sessions (read from the just-merged session log data). 
 
-## Step 5 — Post-processing
+## Step 5 — Post-processing menu
 
-Run the lint check for orphans, contradictions, and gaps:
+Use `AskUserQuestion` with `multiSelect: true`. Always run QMD before lint:
 
-```bash
-python3 scripts/wiki-lint-check.py
-```
-
-In team-mode, Azure AI Search reindexing is automatic — the `wiki-aoai-index` GitHub Action fires on every push to `main` that touches `wiki/**` and incrementally embeds the changed pages. Nothing to do at finalize time.
+- **All (recommended)** — lint + QMD text + vector embedding; supersedes individual selections
+- **Lint** — health check: orphans, contradictions, gaps 
+- **QMD text re-index** (`qmd update`) — fast, keywords only
+- **QMD vector embedding** (`qmd update && qmd embed`) — slow, ~2 GB models; supersedes text-only if both selected
 
 ## Step 6 - End message
 
-After running the lint check do not suggest to run finalize again. Do propose to fix specific issues if the lint check found any.
+After running the lint check or QMD do not suggest to run finalize again. Do propose to run `scripts/wiki-lint-check.py` if any problems were found during the lint check.

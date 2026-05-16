@@ -5,6 +5,8 @@ description: Use when the user notices a system, concept, person, project, decis
 
 # Wiki — Add Missing Page
 
+> **[team-mode]** Wherever this skill says `mcp__plugin_qmd_qmd__query` / `…_get` / `…_multi_get`, use `mcp__team-wiki__wiki_query` / `mcp__team-wiki__wiki_get_page` instead. The team-wiki MCP does hybrid BM25 + vector retrieval automatically — ignore the lex/vec/hyde sub-query distinctions and the `raw-*` collection list; only `wiki/**.md` is indexed.
+
 Follow this workflow step by step. Do not skip steps or batch them together.
 
 ---
@@ -54,20 +56,34 @@ Combine these terms with the name and description from Step 2. You will use all 
 
 ## Step 4 — Search and collect
 
-Run **parallel** `mcp__team-wiki__wiki_query` calls to gather all potentially relevant existing wiki content. Cast a wide net.
+Run **parallel** QMD searches to gather all potentially relevant content. Cast a wide net.
 
-### Queries to run (all in parallel):
-- The page name (e.g. `"NDS.Live"`)
-- Each related term from Step 3 (one query per term)
-- The description from Step 2
-- `"what is <name> and how does it work"`
-- A short hypothetical paragraph describing what an answer about <name> would look like
+### Searches to run (all in parallel):
 
-The team-wiki MCP does hybrid BM25 + vector retrieval automatically — no need to pick lex/vec/hyde modes.
+**Lexical (lex) searches** — exact keyword matches:
+- Query: the page name
+- Query: each related term from Step 3 (one query per term or combined)
+
+**Semantic (vec) searches** — meaning-based:
+- Query: the description from Step 2
+- Query: "what is [name] and how does it work"
+- Query: each related term phrased as a concept
+
+**Hypothetical document (hyde) search**:
+- Query: write a short paragraph describing what an answer about [name] would look like
+
+**Collections to search** (include all):
+- `raw-notes` — primary source (2700+ meeting notes, documents)
+- `raw-emails` — email threads
+- `raw-scans-transcribed` — scanned/transcribed documents
+- `raw-confluence` — Confluence pages
+- `wiki-concepts`, `wiki-systems`, `wiki-decisions`, `wiki-people`, `wiki-competition`, `wiki-projects`, `wiki-problems` — existing Wiki pages
+
+Use `minScore: 0.5` to filter noise. Use `intent` on every call to improve snippet relevance (set intent to the description from Step 2).
 
 ### After searching:
-- Retrieve full content of the top-scoring hits using `mcp__team-wiki__wiki_get_page` (one call per cited path).
-- Apply your own insight: think about what adjacent concepts, systems, or people might relate to this topic and run additional targeted queries for those too.
+- Retrieve full content of the top-scoring hits using `mcp__plugin_qmd_qmd__get` or `mcp__plugin_qmd_qmd__multi_get`.
+- Apply your own insight: think about what adjacent concepts, systems, or people might relate to this topic and run additional targeted searches for those too.
 - Collect all source file paths (for citation).
 
 ---
