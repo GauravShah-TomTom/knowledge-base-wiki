@@ -11,7 +11,6 @@ permissions:
   id-token: write       # OIDC federation
   contents: write       # Push branches
   pull-requests: write  # Open PRs
-  actions: write        # Dispatch wiki-aoai-index after auto-merge
 
 concurrency:
   group: wiki-ingest
@@ -47,6 +46,17 @@ jobs:
       - name: Pin subscription
         run: |
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+
+      # Mint a team-wiki-feedback-bot installation token. The bot's push
+      # (auto-merge of the ingest PR below) IS NOT GITHUB_TOKEN, so it fires
+      # downstream workflows normally — wiki-aoai-index then runs in
+      # incremental mode on the push event.
+      - name: Get GitHub App installation token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.WIKI_BOT_APP_ID }}
+          private-key: ${{ secrets.WIKI_BOT_PRIVATE_KEY }}
 
       - name: Download new blobs
         run: bash scripts/azure-blob-download.sh
@@ -198,7 +208,7 @@ jobs:
       - name: Auto-merge gate
         if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_NUMBER="${{ steps.pr.outputs.number }}"
           STATUS_FILE=".import/conflict-status.txt"
@@ -220,35 +230,6 @@ jobs:
             gh pr merge "$PR_NUMBER" --auto --squash || \
               echo "::warning::Auto-merge could not be enabled (branch protection or already-merged)."
           fi
-
-      # GITHUB_TOKEN-driven pushes (auto-merge above) deliberately don't trigger
-      # downstream workflows — GitHub Actions anti-loop protection. So the merge
-      # of an ingest PR never fires wiki-aoai-index on its own. Trigger it
-      # explicitly here after we confirm the PR actually merged. Note this fires
-      # as workflow_dispatch → full re-embed (cheap at our scale; revisit when
-      # the wiki has >500 pages).
-      - name: Trigger AI Search index update
-        if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PR_NUMBER="${{ steps.pr.outputs.number }}"
-          STATUS_FILE=".import/conflict-status.txt"
-          if [ -f "$STATUS_FILE" ] && grep -q "^CONFLICT" "$STATUS_FILE"; then
-            echo "Conflict detected — PR #$PR_NUMBER left for review, skipping index trigger."
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            STATE=$(gh pr view "$PR_NUMBER" --json state -q .state)
-            if [ "$STATE" = "MERGED" ]; then
-              echo "PR #$PR_NUMBER merged — triggering wiki-aoai-index."
-              gh workflow run wiki-aoai-index.yml
-              exit 0
-            fi
-            echo "PR #$PR_NUMBER state: $STATE — waiting (attempt $i/30)..."
-            sleep 2
-          done
-          echo "::warning::PR #$PR_NUMBER did not merge within 60s. Run wiki-aoai-index manually if needed."
 
       - name: No-op message
         if: steps.detect.outputs.changes == 'false'
