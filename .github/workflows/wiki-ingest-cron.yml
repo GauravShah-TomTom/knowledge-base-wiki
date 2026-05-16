@@ -2,8 +2,9 @@ name: Wiki ingestion (cron)
 
 on:
   schedule:
-    # Every 15 minutes
-    - cron: '*/15 * * * *'
+    # Every 15 minutes, off-quarter — GitHub Actions silently skips schedule
+    # events at :00/:15/:30/:45 under load. Off-minute slots get skipped less.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 permissions:
