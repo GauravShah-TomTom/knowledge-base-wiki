@@ -23,7 +23,7 @@ git clone <repo-url> ~/my-knowledge-base
 
 # 2. Create raw/ and wiki/ directories (these are not stored in git)
 cd ~/my-knowledge-base
-mkdir -p raw/{notes,clips,emails,transcripts,scans} wiki
+mkdir -p raw/{notes,clips,emails,transcripts,scans,slack} wiki
 
 # 3. Install QMD (the semantic search engine)
 npm install -g bun
@@ -80,6 +80,10 @@ Register QMD as a MCP server in `~/.claude/claude_desktop_config.json` (or ask C
 }
 ```
 
+The Slack integration is managed via your claude.ai organization. Authorize it yourself at **claude.ai → Settings → Connectors**. Once authorized, the Slack tools are available automatically in all Claude sessions — no local configuration needed.
+
+The email integration uses Microsoft Power Automate to save emails to a OneDrive folder, which syncs to your local disk. Ask "fetch mail" to copy files from that folder into `raw/emails/` and queue them for ingestion.
+
 ---
 
 ## In a nutshell
@@ -88,12 +92,13 @@ Register QMD as a MCP server in `~/.claude/claude_desktop_config.json` (or ask C
 	- User produces raw notes and stores them in the `raw/notes` directory.
 	- User uses the Obsidian Web Clipper to store notes in `raw/clips`.
 	- User stores `.vtt` meeting transcripts in `raw/transcripts`.
-	- User drags `.eml` emails to `raw/emails`.
+	- User asks "fetch mail" to copy emails from the configured inbox to `raw/emails/`, or drags `.eml`/`.html` files there manually.
 	- User stored handwritten notes or scanned pages (PDF, JPG) in `raw/scans`.
+	- User fetches Slack channels and DMs by asking "fetch slack" — messages are written to `raw/slack/`.
 
 - **Ingest notes:**
 	- User asks to "ingest new raw notes", "ingest Confluence page `<URL>`" or runs `wiki-ingest.loop.sh`.
-	- LLM converts non-Markdown inputs: `.vtt` transcripts → `raw/transcripts/converted/`, `.eml` emails → `raw/emails/converted/`, `.pdf/.jpg` scans → `raw/scans/converted/`.
+	- LLM converts non-Markdown inputs: `.vtt` transcripts → `raw/transcripts/converted/`, `.eml`/`.html` emails → `raw/emails/converted/`, `.pdf/.jpg` scans → `raw/scans/converted/`.
 	- LLM partitions files into batches and processes them (large ingests use parallel LLM sessions 2–5; single batches are handled in one session).
 	- After all batches are done, user says "finalize ingest" to merge session logs, rebuild `_index.md` files, and run post-processing (QMD re-index + health check).
    
@@ -113,6 +118,7 @@ These skills commands and natural-language triggers are available:
 | ----------------          | ----------- |
 | "ingest new notes"        | Start a new ingest of raw notes (Session 1 — coordinator flow) |
 | "fetch slack"             | Fetch Slack threads and DMs into `raw/slack/`, then run `wiki-ingest-loop.sh` to ingest |
+| "fetch mail"              | Copy emails from configured inbox to `raw/emails/`, then run `wiki-ingest-loop.sh` to ingest |
 | "ingest next batch"       | Continue ingesting the next batch (Sessions 2–N flow) |
 | "finalize ingest"         | Finalize the ingest: merge logs, rebuild indexes, run post-processing |
 | "health check" or "lint"  | Check for orphaned pages, broken links, contradictions |
@@ -149,6 +155,20 @@ This opens an interactive TUI to deal with:
 
 Using this interactive mode, you should be able to keep your knowledge base 100% free of false positive alerts so it's easy to see if the knowledge base is still sound or not. Use `--batch-mode` to suppress the TUI and get text/JSON output only.
 
+### Pro-tip 3: run `qmd-full-reindex.sh` to re-index the semantic database
+
+After running ingestion of notes (e.g. by `scripts/wiki-ingest-loop.sh`), you are advised to run:
+```
+scripts/qmd-full-reindex.sh
+```
+This makes sure the sematic database (QMD) is fully up-to-date again. The LLM skill `wiki-query` makes use of the semantic database, so make sure it's up-to-date.
+
+Instead of running a full re-index, you can also execute `qmd embed`. This is useful if you only ingested a couple of new notes, for example.
+
+### Pro-tip 4: Storing draft notes (not for ingestion yet)
+
+You can store notes in `/drafts` while you're working on then and you don't want them ingested yet. Move them manually to `/raw/notes` once you think they are ready for ingestion. Then run `scripts/wiki-ingest-loop.sh`.
+
 ## Configuration
 
 ### Personalizing your setup
@@ -166,6 +186,52 @@ I am ...
 ```
 
 If the file is missing, or it contains no info topics, default topics will be used.
+
+### Configuring Slack sources
+
+Add a `# Slack` section to `config/personal_info.md` to configure which channels and DMs to fetch:
+
+| Channel / DM            | Days | Mode                      |
+|-------------------------|------|---------------------------|
+| #architecture-decisions | 14   | signal                    |
+| #team-platform          |      | all                       |
+| @Alice van Dijk         | 7    | software design decisions |
+
+- `#channel-name` — a public or private Slack channel
+- `@Person Name` — a direct message thread with that person
+- **Days** — how many calendar days back to fetch conversation updates (default: 7)
+- **Mode** — `signal` filters out noise (absences, bot messages, bare acks); `all` includes everything; any other text is treated as a topic filter (only threads directly about that topic are included)
+
+### Capturing emails automatically with Microsoft Power Automate
+
+You can use [Microsoft Power Automate](https://make.powerautomate.com/) to automatically save incoming emails as `.html` files so they are picked up by the ingestion pipeline.
+
+Create a flow with these steps:
+
+1. **Trigger:** *When a new email arrives (V3)*
+2. **Action:** *Get emails (V3)* — to retrieve the full email details
+3. **Action:** *Get email (V3)* — to get the email body
+4. **Action:** *Create file* (OneDrive for Business) — save to a dedicated OneDrive inbox folder (e.g. `KnowledgeSystem/inbox`). This folder syncs to your local disk; configure its local path in `config/personal_info.md` and ask "fetch mail" to copy files to `raw/emails/`.
+   - **File name:** `@{outputs('Get_email_(V2)')?['body/receivedDateTime']}.html`
+   - **File content:**
+     ```
+     FROM:@{outputs('Get_email_(V2)')?['body/from']},TO:@{outputs('Get_email_(V2)')?['body/toRecipients']},CC:@{outputs('Get_email_(V2)')?['body/ccRecipients']},BCC:@{outputs('Get_email_(V2)')?['body/bccRecipients']},SUBJECT:@{outputs('Get_email_(V2)')?['body/subject']},BODY:@{outputs('Get_email_(V2)')?['body/body']}
+     ```
+
+The resulting filename looks like `2026-05-13T08_32_05+00_00.html` — the date is extracted from it automatically. The `FROM`, `TO`, `CC`, `BCC`, and `SUBJECT` fields become YAML frontmatter; `BODY` is converted from HTML to Markdown. Once the OneDrive folder syncs to your local disk, ask "fetch mail" to pull the files into `raw/emails/` and drain the inbox.
+
+### Configuring email fetch
+
+Add an `# Email` section to `config/personal_info.md` to configure where "fetch mail" copies files from:
+
+```markdown
+# Email
+| Setting | Value                        |
+|---------|------------------------------|
+| Inbox   | /path/to/your/onedrive/inbox |
+```
+
+Set `Inbox` to the local path of the folder that contains your exported email files (`.html` and `.eml`) from for example, the Power Automate flow. Files are copied to `raw/emails/` and deleted from the inbox on each fetch.
 
 ### Running Claude within Obsidian
 
@@ -205,11 +271,12 @@ The database is automatically checked for errors after ingesting new notes. To c
 ├── raw/
 │   ├── clips/           ← web articles and saved pages (web clipper)
 │   ├── confluence/      ← pages fetched from Atlassian Confluence (fetch cache)
-│   ├── emails/          ← email threads (.eml)
+│   ├── emails/          ← email threads (.eml or .html exports)
 │   │   └── converted/   ← LLM generated: emails converted to Markdown
 │   ├── scans/           ← handwritten pages, whiteboards
 │   │   └── converted/   ← LLM generated: scans converted to Markdown
 │   ├── notes/           ← notes, 1:1s, and people-specific files
+│   ├── slack/           ← Slack channel and DM threads (fetched by "fetch slack")
 │   └── transcripts/     ← meeting and conversation transcripts (.vtt)
 │       └── converted/   ← LLM generated: transcripts converted to Markdown
 ├── wiki/
@@ -273,6 +340,7 @@ The directories `raw` and `wiki` are not stored in Git. Create them manually bef
 | `system/wiki-create-import-batches.sh` | Partitions un-ingested notes into batch files for parallel import sessions. Called automatically by `wiki-ingest-loop.sh` and the `wiki-ingest` skill. |
 | `system/wiki-create-index-pages.py` | Rebuilds `_index.md` files for each wiki section. Called by the `wiki-finalize-ingest` skill after a completed ingest run. |
 | `system/convert-eml-to-md.py` | Converts `.eml` email files to Markdown with YAML frontmatter. Called by `wiki-ingest-loop.sh` before ingestion. |
+| `system/convert-html-to-md.py` | Converts `.html` email exports (e.g. from Microsoft Power Automate) to Markdown with YAML frontmatter. Called by `wiki-ingest-loop.sh` before ingestion. |
 | `system/convert-vtt-to-md.py` | Converts `.vtt` transcript files to readable Markdown with YAML frontmatter. Called by `wiki-ingest-loop.sh` before ingestion. |
 | `system/copy-claude-skills-to-other-agents.sh` | Copies `.claude/skills/` to other AI agent config directories (Junie, Gemini, Codex, etc.) so all agents share the same skill set. |
 | `system/qmd-reset-collections.sh` | Removes all QMD collections and wipes the search index database. Use before a full re-sync. |
