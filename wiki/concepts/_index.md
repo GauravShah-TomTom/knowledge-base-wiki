@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-16 05:48:01
+date: 2026-05-18 07:57:34
 ---
 # Concepts - index
 [[wiki/index|← Index]]
@@ -9,6 +9,8 @@ Technologies, standards, mental models, and domain vocabulary.
 
 - [[wiki/concepts/Auto-Graduation|Auto-Graduation]] — Auto-Graduation is the automated pipeline that converts [[MEDS]] map error detections into applied map fixes, without requiring human review for every individual detection.
 - [[wiki/concepts/DTFR|DTFR (Default Turn From Rules)]] — DTFR refers to a set of rules in the [[Lanes]] pipeline that apply default lane connectivity and lane count when authoritative data is missing or incomplete.
+- [[wiki/concepts/FMO|FMO (Feature Model Output / Quality Run)]] — FMO refers to a quality validation run performed on a geographic zone in the [[projects/Lanes|Lanes]] pipeline.
+- [[wiki/concepts/FOW|FOW (Functional Order of Way)]] — FOW is a road classification attribute used in map data to describe the function of a road within the overall road network.
 - [[wiki/concepts/H3 Tiles|H3 Tiles]] — H3 is a hexagonal hierarchical spatial indexing system (developed by Uber) used to subdivide geographic zones into discrete tiles for parallel processing.
 - [[wiki/concepts/Intermediate Roads|Intermediate Roads]] — Roads that form the interior of a junction area (connector/filler segments between approach legs).
 - [[wiki/concepts/Lane Connectivity|Lane Connectivity]] — Lane connectivity describes which lanes at an intersection or junction connect to which outgoing lanes, capturing legal and physical turn relationships between road segments.
