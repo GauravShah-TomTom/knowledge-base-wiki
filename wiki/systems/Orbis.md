@@ -18,4 +18,12 @@ Orbis is a map data platform and delivery layer used in TomTom's [[Lanes]] pipel
 - [[Map Content Portal]] — release catalogue
 - [[Leg Boosting]] — pipeline whose output appears in the Orbis layer
 
-*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/slack/adas-hd-basemap-lanes-general/2026-05-13 18_20_40 - reply - 2026-05-14 09_44_31.md`*
+## Improvement requests from FMO review
+
+The DEU-01 [[concepts/FMO|FMO]] violation review identified several areas where Orbis improvements are requested:
+- Provide lane count indication on intermediate road elements in large junctions (rule 50329).
+- Ensure Lane Direction Category is reflected in connectivity generation (rule 53887).
+- Incorporate maneuvers, DTFR, and general restrictions when creating lane connectivities (rule 51068).
+- Improve lane connectivity for bidirectional road scenarios (rules 50263, 51085).
+
+*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/slack/adas-hd-basemap-lanes-general/2026-05-13 18_20_40 - reply - 2026-05-14 09_44_31.md`, `raw/confluence/Lanes FMO-- violation review.md`*
