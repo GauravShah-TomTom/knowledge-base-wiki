@@ -7,7 +7,7 @@ questions. Skips opening the issue if there's nothing to report.
 
 Required env:
     AZURE_STORAGE_ACCOUNT  Storage account holding the auditlog table
-    GITHUB_REPOSITORY      e.g. GauravShah-TomTom/knowledge-base-wiki
+    GITHUB_REPOSITORY      e.g. tomtom-internal/knowledge-base-team-wiki
     GH_TOKEN               Token with `issues: write` on the repo
 Optional:
     DIGEST_DAYS            Window in days (default 7)

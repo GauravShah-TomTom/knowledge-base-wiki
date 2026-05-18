@@ -30,6 +30,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # PAT so that pushes from this job (Claude's git push to the ingest
+          # branch, and the auto-merge of the PR) attribute to the PAT owner
+          # rather than the workflow's GITHUB_TOKEN. GITHUB_TOKEN pushes do
+          # NOT trigger downstream workflows; PAT pushes do — that's how we
+          # keep wiki-aoai-index running on the merge commit.
+          token: ${{ secrets.WIKI_BOT_PAT }}
 
       - name: Clear runner's pre-existing Azure context
         run: |
@@ -46,17 +52,6 @@ jobs:
       - name: Pin subscription
         run: |
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
-      # Mint a team-wiki-feedback-bot installation token. The bot's push
-      # (auto-merge of the ingest PR below) IS NOT GITHUB_TOKEN, so it fires
-      # downstream workflows normally — wiki-aoai-index then runs in
-      # incremental mode on the push event.
-      - name: Get GitHub App installation token
-        uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ vars.WIKI_BOT_APP_ID }}
-          private-key: ${{ secrets.WIKI_BOT_PRIVATE_KEY }}
 
       - name: Download new blobs
         run: bash scripts/azure-blob-download.sh
@@ -208,7 +203,8 @@ jobs:
       - name: Auto-merge gate
         if: steps.detect.outputs.changes == 'true' && steps.verify.outputs.committed == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          # PAT (not GITHUB_TOKEN) so the merge commit triggers wiki-aoai-index.
+          GH_TOKEN: ${{ secrets.WIKI_BOT_PAT }}
         run: |
           PR_NUMBER="${{ steps.pr.outputs.number }}"
           STATUS_FILE=".import/conflict-status.txt"
