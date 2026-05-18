@@ -1,5 +1,10 @@
 # Team-mode for `knowledge-base-wiki`
 
+> **Note (2026-05-18):** This is the **original planning doc** from before
+> implementation. Repo paths and infra strategy below describe the *intended*
+> design, not the as-built state. For current operator info (live repo paths,
+> auth, deploy), see [`TEAM-MODE.md`](./TEAM-MODE.md).
+
 ## Context
 
 `knowledge-base-wiki` (TomTom-internal fork at `github.com/tomtom-forks/knowledge-base-wiki/`) today is a single-user vault: each engineer's `raw/` and `wiki/` live on their own laptop. The Slack thread on the repo shows team-use is the open architectural question right now: Rijn Buve has it on his roadmap, Nathan Fleming tried it for FCD and hit storage scaling pain, Sagar Khanna built a parallel team variant (`tomtom-internal/DD-Team-Wiki`). This plan describes an end-to-end design for team-mode that addresses those concerns and can be contributed back upstream.
