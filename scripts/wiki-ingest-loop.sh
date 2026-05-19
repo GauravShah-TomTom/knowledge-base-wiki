@@ -53,6 +53,10 @@ check_dependencies() {
             command -v junie &>/dev/null || \
                 missing+=("junie    →  install from JetBrains: https://www.jetbrains.com/junie/")
             ;;
+        copilot)
+            command -v copilot &>/dev/null || \
+                missing+=("copilot  →  install the GitHub Copilot CLI (see project docs)")
+            ;;
     esac
 
     if [ "${#missing[@]}" -gt 0 ]; then
@@ -80,6 +84,7 @@ Options:
   --agent AGENT              LLM agent command to use (default: claude).
                              Allowed values: claude (Anthropic Claude),
                                              junie  (JetBrains Junie).
+                                            copilot (GitHub Copilot).
   --threshold N              Usage percentage ceiling (default: 85). Each phase starts only
                              when current usage is strictly below this value.
   --max-errors N             Maximum number of LLM agent command errors before the script
@@ -376,6 +381,11 @@ run_llm() {
               else empty
               end
             ' ;;
+                copilot)
+                        # Send prompt to Copilot CLI. Attempt a simple stdin-based invocation
+                        # so callers like 'copilot' that accept piped input will work.
+                        printf '%s\n' "$prompt" | copilot
+                        ;;
         junie)  junie --brave --skip-update-check --output-format=text --task "$prompt" ;;
     esac
 }
