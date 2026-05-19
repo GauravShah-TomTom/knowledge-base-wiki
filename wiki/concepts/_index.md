@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-19 05:49:20
+date: 2026-05-19 06:29:03
 ---
 # Concepts - index
 [[wiki/index|← Index]]
@@ -16,7 +16,9 @@ Technologies, standards, mental models, and domain vocabulary.
 - [[wiki/concepts/Intermediate Roads|Intermediate Roads]] — Roads that form the interior of a junction area (connector/filler segments between approach legs).
 - [[wiki/concepts/Lane Connectivity|Lane Connectivity]] — Lane connectivity describes which lanes at an intersection or junction connect to which outgoing lanes, capturing legal and physical turn relationships between road segments.
 - [[wiki/concepts/Leg Boosting|Leg Boosting]] — A production pipeline stage in the [[HD Basemap]] workflow that corrects junction models by adding missing road legs.
+- [[wiki/concepts/MCP|MCP (Model Context Protocol)]] — An open protocol that allows AI coding assistants (such as [[Claude Code]]) to call tools exposed by a server over a standardised interface.
 - [[wiki/concepts/Map Healing|Map Healing]] — Map Healing is the discipline of automatically detecting, classifying, and correcting errors in map data using real-world driver behaviour as a signal.
 - [[wiki/concepts/MapMatching|MapMatching]] — MapMatching is the process of aligning raw GPS driver traces to a road network, producing a sequence of road segments that best explains the observed positions.
 - [[wiki/concepts/PUDO|PUDO — Pickup/Dropoff Location]] — A PUDO (Pickup/Dropoff) is a geographic location where Uber trips begin or end.
 - [[wiki/concepts/Route Divergence|Route Divergence]] — A route divergence is an event where a driver traverses a different road segment than the one suggested by the navigation system.
+- [[wiki/concepts/Vector Index|Vector Index]] — A search index that stores dense vector embeddings (numerical representations of text meaning) alongside traditional keyword (B2S) indexes, enabling semantic similarity search — retrieving results by meaning rather than exact keyword match.
