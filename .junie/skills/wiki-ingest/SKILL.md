@@ -15,6 +15,23 @@ When asked to "ingest new raw notes" (or similar):
    python3 scripts/system/convert-eml-to-md.py --input-dir raw/emails --output-dir raw/emails/converted
    ```
    These convert VTT transcript files and EML email files into Markdown so they are picked up by the batch importer. Skip silently if the input directories don't exist.
+
+   **Images in `raw/scans/`** (PNG/JPG/JPEG): no deterministic CLI converter exists, so do this inline before partitioning. List candidates with:
+   ```bash
+   mkdir -p raw/scans/converted
+   find raw/scans -maxdepth 1 -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \) | \
+     while read f; do
+       [ -e "raw/scans/converted/$(basename "$f").md" ] || echo "$f"
+     done
+   ```
+   For each listed image, read it with vision and write the converted Markdown to `raw/scans/converted/<filename>.md` with frontmatter:
+   ```yaml
+   ---
+   source: raw/scans/<filename>
+   converted: YYYY-MM-DD HH:mm:ss
+   ---
+   ```
+   The sidecars are then picked up by the batch script and ingested via the per-note skill's normal Markdown flow (the per-note skill's "non-Markdown source converted before ingestion" rule covers logging — write two log entries per image: one for the source PNG, one for the converted `.md`). Skip silently if `raw/scans/` is empty or all images already have sidecars.
 2. **Partition** (run automatically): `bash scripts/system/wiki-create-import-batches.sh`
    - Default max batch size is 50 files. Override with `--max-size N` (e.g. `--max-size 20`).
    - This removes any old `.import/batch-import-*.txt` remnants and creates fresh ones.
