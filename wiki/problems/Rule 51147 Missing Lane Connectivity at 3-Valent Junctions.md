@@ -20,12 +20,9 @@ Rule 51147 fires when lane connectivity is missing at a 3-valent junction (T-jun
 
 ## Proposed Solution
 
-Two approaches under consideration (see conflict note):
+Use whatever HD/SDK provides and fill in any missing connections with defaults — the **supplement** approach agreed in the 2026-05-19 sprint planning. A new sprint story is being created to implement this. See [[decisions/Supplement HD Connectivity at 3-Valent Junctions]].
 
-1. **Replace (FMO review)**: Ignore connectivity proposed by HD for simple T-type 3-valent junctions (FOW 3 or DC Taper) and by default populate all possible connections. See [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]].
-2. **Supplement (2026-05-19 sprint)**: Use whatever HD/SDK provides and fill in any missing connections with defaults. See [[decisions/Supplement HD Connectivity at 3-Valent Junctions]].
-
-A new sprint story is being created to implement the supplement approach.
+This supersedes the earlier "replace" approach from the FMO review ([[decisions/Default Lane Connectivity at 3-Valent T-Junctions]]).
 
 ## Related
 

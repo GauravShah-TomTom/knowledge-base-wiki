@@ -53,7 +53,7 @@ Sprint has ~5 effective working days due to an innovation week following it.
 - [[decisions/Create Spike for Rule 51068 Before Implementing]]
 - [[decisions/Use Airflow for End-to-End H3 Tile Processing]]
 - [[decisions/Focus on Top-5 Rule Fixes First]]
-- [[decisions/Supplement HD Connectivity at 3-Valent Junctions]] ⚠️ conflicts with [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]]
+- [[decisions/Supplement HD Connectivity at 3-Valent Junctions]] (supersedes [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]])
 
 ## Open problems
 
