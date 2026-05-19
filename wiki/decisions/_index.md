@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-18 14:49:12
+date: 2026-05-19 05:49:20
 ---
 # Decisions - index
 [[wiki/index|← Index]]
@@ -8,7 +8,7 @@ date: 2026-05-18 14:49:12
 Why decisions were taken, on what basis, by whom, and when.
 
 - [[wiki/decisions/Create Spike for Rule 51068 Before Implementing|Decision: Create Spike for Rule 51068 Before Implementing]] — Rule 51068 (invalid lane connectivity) involves many conflicting scenarios where [[Genesis]] and [[Orbis]] provide different lane data.
-- [[wiki/decisions/Default Lane Connectivity at 3-Valent T-Junctions|Default Lane Connectivity at 3-Valent T-Junctions]] — For simple T-type 3-valent junctions (FOW 3 or DC Taper), ignore the lane connectivity proposed by [[systems/HD Basemap|HD]] data and by default populate all possible lane connections at such junctions.
+- [[wiki/decisions/Default Lane Connectivity at 3-Valent T-Junctions|Default Lane Connectivity at 3-Valent Junctions]] — For any 3-valid junction (not limited to T-type / FOW 3 / DC Taper): apply whatever lane connectivity [[systems/HD Basemap|HD]] / [[systems/Cross Link|Crosslink]] provides.
 - [[wiki/decisions/Focus on Top-5 Rule Fixes First|Decision: Focus on Top-5 Rule Fixes First]] — The [[Lanes]] backlog contains many rule errors, but most have very low occurrence rates.
 - [[wiki/decisions/No Action for Lane Divider Rules 51083 and 51149|No Action for Lane Divider Rules 51083 and 51149]] — No corrective action is to be taken for rules [[problems/Rule 51083 Incorrect Lane Divider Type|51083]] and [[problems/Rule 51149 Incorrect Lane Divider Type|51149]].
 - [[wiki/decisions/Skip Rule 52261 from Lanes Project Scope|Skip Rule 52261 from Lanes Project Scope]] — Rule 52261 ("Carriageways too close based upon number of lanes") is a candidate for removal from the [[projects/Lanes|Lanes project]] scope — no pipeline action is required.

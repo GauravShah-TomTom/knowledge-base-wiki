@@ -24,6 +24,20 @@ In [[HD Basemap]], some junctions are represented as large areas with HD traject
 
 > **Note**: Roundabouts should be excluded from any automatic defaulting logic, at least initially.
 
+## Implementation approach (2026-05-19)
+
+[[Gaurav Shah]] is implementing the post-processing task (Route 5832) with this logic:
+
+1. Check if the road element is part of a normal intersection or not.
+2. If it is a normal intersection and the road is still in the "VR roads" category, apply lane count and lane connectivity accordingly (based on the highest-FRC / neighbouring road class).
+3. Extend the output JSON metadata with the rule ID so each JSON file maps to exactly one transaction — this enables downstream tracing of which transaction fixed which rule.
+
+A separate task is being created to wire up the upstream country driving direction property (currently hardcoded in `application.properties`) — see [[problems/Missing Country Driving Direction in Derivation]].
+
+Testing plan: replicate 4–5 existing transactions (impacted by this rule) in the dev environment; full-zone testing on the test branch will cover all rules together.
+
+Confluence page links are being added to the story for full test case details.
+
 ## Related
 
 - [[concepts/Intermediate Roads]] — definition of intermediate road elements
@@ -32,4 +46,4 @@ In [[HD Basemap]], some junctions are represented as large areas with HD traject
 - [[systems/Orbis]] — potential source for improvement
 - [[systems/HD Basemap]] — source of junction area modelling
 
-*Source: `raw/confluence/Lanes FMO-- violation review.md`*
+*Sources: `raw/confluence/Lanes FMO-- violation review.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`*

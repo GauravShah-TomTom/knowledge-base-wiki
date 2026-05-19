@@ -23,6 +23,23 @@ The Lanes project automates the derivation and correction of lane data (lane cou
 
 Systems: [[Databricks]], [[Data Preparator]], [[Cross Link]], [[Lanes Automator]], [[Transaction Manager]], [[MCR]], [[Iris]], [[Airflow]] (planned orchestrator).
 
+## Active sprint (2026-05-19)
+
+Sprint has ~5 effective working days due to **innovation week** the following week.
+
+Stories in scope:
+
+| Story / Rule ID | Description | Owner | Status |
+|---|---|---|---|
+| Route 5832 | Post-processing to add lanes at intersections | [[Gaurav Shah]] | In progress |
+| 51059 | Detect/filter lanes on non-payload roads | Speaker 3 | In progress — description being updated |
+| 50329 | DTFR — missing link connectivity at 3-valid junctions | — | Discussed |
+| 51068 | Invalid lane connectivity (Genesis vs Orbis conflict) — **spike** | Viveka (first name only) | Spike |
+| New story | End-to-end H3 tile parallel processing via Airflow | [[Gaurav Shah]] | To be created |
+| New story | Rule-to-transaction tracing / Iris priority tagging | — | To be created |
+
+Testing pattern agreed for all rule stories: replicate 4–5 impacted transactions in dev environment as a subtask; full-zone testing on test branch comes later (separate, covers all rules together).
+
 ## Active sprint (2026-05-15)
 
 Stories being groomed:
@@ -68,4 +85,4 @@ Top rules and proposed resolution paths:
 | 52261 | Carriageways too close | Skip (see [[decisions/Skip Rule 52261 from Lanes Project Scope]]) |
 | 51083 / 51149 | Lane Divider type | No action (see [[decisions/No Action for Lane Divider Rules 51083 and 51149]]) |
 
-*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/confluence/Lanes FMO-- violation review.md`*
+*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`, `raw/confluence/Lanes FMO-- violation review.md`*
