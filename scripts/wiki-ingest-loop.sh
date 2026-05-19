@@ -116,8 +116,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --agent)
             case "$2" in
-                claude|junie) AGENT="$2" ;;
-                *) echo "Unknown agent: $2 (allowed: claude, junie)" >&2; usage >&2; exit 1 ;;
+                claude|junie|copilot) AGENT="$2" ;;
+                *) echo "Unknown agent: $2 (allowed: claude, junie, copilot)" >&2; usage >&2; exit 1 ;;
             esac
             shift 2 ;;
         --threshold)
