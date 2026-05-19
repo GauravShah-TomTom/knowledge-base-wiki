@@ -13,12 +13,18 @@ The [[Lanes Automator]] node pool currently scales to a single node and processe
 
 ## Current workaround
 
-Single-zone GitHub Actions trigger. The [[Data Preparator]] and [[Cross Link]] on [[Databricks]] already handle H3 tiles in parallel, but this parallelism is not propagated to Lanes Automator or [[Transaction Manager]].
+Single-zone [[GitHub Actions]] trigger. The [[Data Preparator]] and [[Cross Link]] on [[Databricks]] already handle H3 tiles in parallel, but this parallelism is not propagated to Lanes Automator or [[Transaction Manager]].
 
 ## Planned solution
 
-- Make the Lanes Automator node pool auto-scalable (infra subtask).
-- Move orchestration to [[Airflow]] (see [[decisions/Use Airflow for End-to-End H3 Tile Processing]]).
-- A new story will be created for this work; existing story 5900 may be reused.
+From the 2026-05-19 sprint planning, a new story will be created with these subtasks:
 
-*Source: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`*
+1. **Lanes Automator infra** — adapt folder structure; make the node pool auto-scalable based on number of H3 tiles per zone.
+2. **Airflow DAG** — trigger [[Databricks]] job; on completion, launch [[Lanes Automator]] for all tiles in parallel; call [[Transaction Manager]] REST API N times (one per tile).
+3. **Testing** — full zone run end-to-end.
+
+[[Transaction Manager]] requires no code changes; it will be called via REST API once per tile by Airflow. The [[Lanes Automator]] folder structure change is needed to organise output per tile.
+
+See [[decisions/Use Airflow for End-to-End H3 Tile Processing]] for the decision record.
+
+*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`*

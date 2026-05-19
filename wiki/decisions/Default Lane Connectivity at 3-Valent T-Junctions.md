@@ -1,8 +1,17 @@
 ---
 type: decision
+contradiction: true
 ---
 
 # Default Lane Connectivity at 3-Valent T-Junctions
+
+⚠️ CONFLICT
+
+> **This passage** (from `raw/confluence/Lanes FMO-- violation review.md`): "ignore the lane connectivity proposed by HD data and by default populate all possible lane connections at such junctions."
+
+> **Conflicting passage** (from `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`): "wherever we are getting connectivity from SD, we'll apply it. If anything is missing, we'll put a default connection." (Gaurav Shah: "not ignore, but just fill the gap")
+
+These two passages describe different approaches to HD data at 3-valent junctions. The 2026-05-19 sprint planning decision to supplement rather than replace HD connectivity may supersede this earlier FMO-derived decision. See [[decisions/Supplement HD Connectivity at 3-Valent Junctions]] for the newer decision.
 
 ## Decision
 
@@ -21,4 +30,4 @@ Rules [[problems/Rule 51684 Missing Lane Connectivity at 3-Valent Junctions|5168
 
 Identified during the Lanes FMO violation review of zone DEU-01 (Schleswig-Holstein).
 
-*Source: `raw/confluence/Lanes FMO-- violation review.md`*
+*Sources: `raw/confluence/Lanes FMO-- violation review.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`*

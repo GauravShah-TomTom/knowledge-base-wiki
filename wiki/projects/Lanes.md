@@ -23,14 +23,25 @@ The Lanes project automates the derivation and correction of lane data (lane cou
 
 Systems: [[Databricks]], [[Data Preparator]], [[Cross Link]], [[Lanes Automator]], [[Transaction Manager]], [[MCR]], [[Iris]], [[Airflow]] (planned orchestrator).
 
-## Active sprint (2026-05-15)
+## Active sprint (2026-05-19)
 
-Stories being groomed:
+Sprint has ~5 effective working days due to an innovation week following it.
+
+| Story / Rule ID | Description | Owner | Sub-tasks |
+|---|---|---|---|
+| Route 5832 | Post-processing to add lanes at intersections | [[Gaurav Shah]] | Implementation + testing (4–5 sample transactions) |
+| 51059 | Detect/filter lanes on non-payload roads (4 scenarios) | — | Sub-task 5954 started; one subtask per scenario + testing |
+| 50329 / new story | Missing link connectivity at 3-valid junctions (supplement HD) | [[Gaurav Shah]] | Implementation + testing (4–5 sample transactions) |
+| 51068 | Invalid lane connectivity (Genesis vs Orbis) — **spike** | Niranjan | Analyze 5–10 cases; document scenarios in Confluence |
+| New story | End-to-end H3 tile parallel processing via [[Airflow]] | [[Gaurav Shah]] | Lanes Automator node pool auto-scaling; Airflow DAG; testing (full zone) |
+| New story | Rule-to-transaction tracing / [[Iris]] priority tagging | — | Populate rule ID in JSON metadata; set Iris priority from metadata |
+
+## Sprint (2026-05-15)
 
 | Story / Rule ID | Description | Owner |
 |---|---|---|
 | Route 5832 | Post-processing to add lanes at intersections | [[Gaurav Shah]] |
-| 51059 | Detect/filter lanes on non-payload roads | Speaker 3 |
+| 51059 | Detect/filter lanes on non-payload roads | — |
 | 50329 | DTFR — missing link connectivity at 3-valid junctions | — |
 | 51068 | Invalid lane connectivity (Genesis vs Orbis conflict) — **spike** | Niranjan |
 | New story | End-to-end H3 tile parallel processing via Airflow | [[Gaurav Shah]] |
@@ -42,6 +53,7 @@ Stories being groomed:
 - [[decisions/Create Spike for Rule 51068 Before Implementing]]
 - [[decisions/Use Airflow for End-to-End H3 Tile Processing]]
 - [[decisions/Focus on Top-5 Rule Fixes First]]
+- [[decisions/Supplement HD Connectivity at 3-Valent Junctions]] ⚠️ conflicts with [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]]
 
 ## Open problems
 
@@ -68,4 +80,4 @@ Top rules and proposed resolution paths:
 | 52261 | Carriageways too close | Skip (see [[decisions/Skip Rule 52261 from Lanes Project Scope]]) |
 | 51083 / 51149 | Lane Divider type | No action (see [[decisions/No Action for Lane Divider Rules 51083 and 51149]]) |
 
-*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/confluence/Lanes FMO-- violation review.md`*
+*Sources: `raw/transcripts/converted/2026-05-15 Lanes_Sprint_Planning.md`, `raw/confluence/Lanes FMO-- violation review.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`*

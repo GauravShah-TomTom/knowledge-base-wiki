@@ -20,9 +20,12 @@ Rule 51684 fires when lane connectivity is absent at a 3-valent junction (T-junc
 
 ## Proposed Solution
 
-Ignore connectivity proposed by HD for simple T-type 3-valent junctions (FOW 3 or DC Taper). By default, populate all possible lane connections at such junctions.
+Two approaches under consideration (see conflict note):
 
-See [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]] for the decision record.
+1. **Replace (FMO review)**: Ignore connectivity proposed by HD for simple T-type 3-valent junctions (FOW 3 or DC Taper) and by default populate all possible connections. See [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]].
+2. **Supplement (May 2026-05-19 sprint)**: Use whatever HD/SDK provides and fill in any missing connections with defaults. See [[decisions/Supplement HD Connectivity at 3-Valent Junctions]].
+
+A new sprint story is being created to implement the supplement approach. Testing plan: replicate 4–5 affected transactions in dev, then full zone test on test branch.
 
 ## Related
 
@@ -30,5 +33,6 @@ See [[decisions/Default Lane Connectivity at 3-Valent T-Junctions]] for the deci
 - [[concepts/Lane Connectivity]] — connectivity derivation rules
 - [[systems/Cross Link]] — Crosslink data matching
 - [[systems/HD Basemap]] — source data
+- [[decisions/Supplement HD Connectivity at 3-Valent Junctions]]
 
-*Source: `raw/confluence/Lanes FMO-- violation review.md`*
+*Sources: `raw/confluence/Lanes FMO-- violation review.md`, `raw/transcripts/converted/2026-05-19 Lanes_Sprint_Planning.md`*

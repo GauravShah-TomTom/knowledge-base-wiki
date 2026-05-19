@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-18 14:49:12
+date: 2026-05-19 05:00:49
 ---
 # Systems - index
 [[wiki/index|← Index]]
@@ -13,6 +13,7 @@ Our products, platforms, and services.
 - [[wiki/systems/Databricks|Databricks]] — Databricks is the cloud data platform used by the [[Lanes]] pipeline to run [[Data Preparator]] and [[Cross Link]] at scale.
 - [[wiki/systems/Genesis|Genesis]] — Genesis is a QA and map data system used in the [[Lanes]] pipeline and the [[HD Basemap]] workflow.
 - [[wiki/systems/GeoCatch|GeoCatch]] — GeoCatch is the Missing Roads detector within [[MEDS]].
+- [[wiki/systems/GitHub Actions|GitHub Actions]] — GitHub Actions is the CI/CD and workflow automation platform used for triggering the [[Lanes]] pipeline.
 - [[wiki/systems/HD Basemap|HD Basemap]] — [[TomTom]]'s HD (high-definition) map basemap product, containing detailed road geometry, lane models, and junction topology.
 - [[wiki/systems/Iris|Iris]] — Iris is the task management system used by map editors to review and validate lane transactions produced by the [[Lanes]] pipeline.
 - [[wiki/systems/Lanes Automator|Lanes Automator]] — Lanes Automator is the core processing service in the [[Lanes]] pipeline.
