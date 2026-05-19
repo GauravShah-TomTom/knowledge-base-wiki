@@ -53,7 +53,37 @@ jobs:
         run: |
           az account set --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
+      - name: Check for open conflict PRs
+        id: conflict_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Pause this cron run if any auto-ingest PR is held for human review
+          # (labeled `needs-review` by the Auto-merge gate step below). Otherwise
+          # the next ingest would re-process related blobs against a clean main,
+          # silently override the held content with a competing resolution, and
+          # the reviewer would never get a meaningful window to decide.
+          OPEN_PRS=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --label needs-review \
+            --json number,url \
+            --jq 'length')
+          if [ "$OPEN_PRS" -gt 0 ]; then
+            echo "::warning::$OPEN_PRS open conflict PR(s) labeled 'needs-review' — skipping this ingest run until they are resolved."
+            gh pr list \
+              --repo "${{ github.repository }}" \
+              --state open \
+              --label needs-review \
+              --json number,url \
+              --jq '.[] | "  - PR #\(.number): \(.url)"'
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download new blobs
+        if: steps.conflict_check.outputs.skip != 'true'
         run: bash scripts/azure-blob-download.sh
 
       - name: Detect new blobs
