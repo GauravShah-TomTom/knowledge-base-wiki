@@ -1,6 +1,6 @@
 ---
 type: index
-date: 2026-05-20 06:48:14
+date: 2026-05-20 08:42:03
 ---
 # People - index
 [[wiki/index|← Index]]
