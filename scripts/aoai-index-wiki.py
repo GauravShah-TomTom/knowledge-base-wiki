@@ -191,6 +191,25 @@ def deletion_docs(paths: list[str]) -> list[dict]:
     return out
 
 
+def list_index_doc_ids(endpoint: str, name: str, api_version: str, api_key: str) -> set[str]:
+    """Page through the index and return every current doc ID. Returns an empty
+    set if the index doesn't exist yet."""
+    url = f"{endpoint}/indexes/{name}/docs?api-version={api_version}&search=*&$select=id&$top=1000"
+    ids: set[str] = set()
+    while url:
+        r = requests.get(url, headers={"api-key": api_key}, timeout=60)
+        if r.status_code == 404:
+            return ids
+        if r.status_code != 200:
+            print(f"GET docs failed: {r.status_code} {r.text}", file=sys.stderr)
+            r.raise_for_status()
+        data = r.json()
+        for d in data.get("value", []):
+            ids.add(d["id"])
+        url = data.get("@odata.nextLink")
+    return ids
+
+
 def put_index(endpoint: str, name: str, api_version: str, api_key: str) -> None:
     url = f"{endpoint}/indexes/{name}?api-version={api_version}"
     body = index_schema(name)
@@ -251,9 +270,22 @@ def main() -> int:
         else:
             push_docs(endpoint, name, api_version, api_key, docs)
     else:
-        print("Full re-embed: walking entire wiki tree ...")
+        # Full reconcile: upsert every current wiki page AND delete any index
+        # doc whose path no longer exists in wiki/. The incremental path only
+        # sees per-PR deletions, so renames/replacements across multiple PRs
+        # leave orphans; this mode is the one that cleans them up.
+        print("Full reconcile: walking entire wiki tree ...")
         docs = collect_docs()
-        print(f"Collected {len(docs)} docs.")
+        current_ids = {d["id"] for d in docs}
+        print(f"Collected {len(docs)} docs from wiki/.")
+        index_ids = list_index_doc_ids(endpoint, name, api_version, api_key)
+        print(f"Found {len(index_ids)} docs in index.")
+        orphan_ids = index_ids - current_ids
+        if orphan_ids:
+            print(f"Deleting {len(orphan_ids)} orphan doc(s) not in wiki/.")
+            docs = docs + [{"@search.action": "delete", "id": did} for did in sorted(orphan_ids)]
+        else:
+            print("No orphan docs to delete.")
         push_docs(endpoint, name, api_version, api_key, docs)
 
     print(f"\nDone — index `{name}` updated as of {datetime.datetime.now(datetime.timezone.utc).isoformat()} (mode={mode})")
