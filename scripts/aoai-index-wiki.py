@@ -245,7 +245,15 @@ def push_docs(endpoint: str, name: str, api_version: str, api_key: str, docs: li
 
 
 def parse_path_list(env_value: str) -> list[str]:
-    return [line.strip() for line in env_value.splitlines() if line.strip()]
+    # tj-actions/changed-files renders multi-path outputs with a literal
+    # backslash between entries when separator is "\n", so each path arrives
+    # as `<path>\<newline>`. Strip the trailing backslash defensively.
+    out: list[str] = []
+    for line in env_value.splitlines():
+        line = line.strip().rstrip("\\").strip()
+        if line:
+            out.append(line)
+    return out
 
 
 def main() -> int:
