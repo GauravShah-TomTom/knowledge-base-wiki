@@ -23,10 +23,16 @@ import sys
 LOG = pathlib.Path("wiki/log.jsonl")
 
 
-def already_seen() -> set[str]:
+def already_seen() -> dict[str, str]:
+    """Return {blob_name: latest_seen_etag} from `blob:` log entries.
+
+    Last entry per blob name wins, so a re-uploaded blob whose etag changed
+    will produce a different stored etag than what the current listing returns,
+    and the downloader will re-download it. This is the only re-ingestion path
+    that handles same-name content updates."""
     if not LOG.exists():
-        return set()
-    seen = set()
+        return {}
+    seen: dict[str, str] = {}
     for line in LOG.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
@@ -35,11 +41,10 @@ def already_seen() -> set[str]:
             obj = json.loads(line)
         except Exception:
             continue
-        for key in ("blob", "file", "path"):
-            v = obj.get(key)
-            if v:
-                seen.add(v)
-                break
+        name = obj.get("blob")
+        if not name:
+            continue
+        seen[name] = (obj.get("etag") or "").strip('"')
     return seen
 
 
@@ -79,7 +84,11 @@ def main() -> int:
     print(f"Listing blobs in {account}/{container}...", file=sys.stderr)
     blobs = list_blobs(account, container)
 
-    new = [b for b in blobs if b["name"] not in seen]
+    new = [
+        b for b in blobs
+        if b["name"] not in seen
+        or seen[b["name"]] != (b.get("etag") or "").strip('"')
+    ]
     if not new:
         print("No new blobs.")
         return 0
