@@ -3,11 +3,10 @@
 import sys
 from pathlib import Path
 
-from ..fixers import fix_curly_quotes, fix_raw_references
+from ..fixers import fix_curly_quotes, fix_raw_references, prune_log
 from ..links import extract_links, is_external, strip_frontmatter
-from ..paths import build_path_suffix_set, build_stem_index, should_skip_md
+from ..paths import VaultIndex
 from ..resolve import (
-    build_normalized_index,
     check_external,
     find_normalized_match,
     find_whitespace_before_ext_match,
@@ -38,10 +37,11 @@ def check_vault(root: Path, args) -> dict:
     if not args.quiet:
         print(f"Scanning {root} ...", file=sys.stderr)
 
-    stem_index = build_stem_index(root)
-    norm_index = build_normalized_index(root)
-    path_suffix_set = build_path_suffix_set(root)
-    md_files = sorted(p for p in root.rglob("*.md") if not should_skip_md(p, root))
+    vault = VaultIndex(root)
+    stem_index = vault.stem_index
+    norm_index = vault.norm_index
+    path_suffix_set = vault.path_suffix_set
+    md_files = vault.md_files
 
     for md_file in md_files:
         total_files += 1
@@ -113,10 +113,15 @@ def check_vault(root: Path, args) -> dict:
 
     raw_refs_pending = 0
     raw_refs_pending_files = 0
+    log_pruned_pending = 0
     if not getattr(args, "fix_simple_errors", False):
         raw_refs_pending_files, raw_refs_pending = fix_raw_references(
             root, quiet=True, dry_run=True
         )
+        _, log_pruned_pending_missing, _, log_pruned_pending_dupes = prune_log(
+            root, quiet=True, dry_run=True
+        )
+        log_pruned_pending = log_pruned_pending_missing + log_pruned_pending_dupes
 
     fixed_links = 0
     fixed_files = 0
@@ -124,6 +129,7 @@ def check_vault(root: Path, args) -> dict:
     fm_deleted_files = 0
     q_renamed = q_link_files = q_links = 0
     raw_files_changed = raw_changes = 0
+    log_pruned_kept = log_pruned_skipped = log_pruned_malformed = log_pruned_dupes = 0
     if getattr(args, "fix_simple_errors", False):
         fixes_by_file: dict = {}
         for entry in broken:
@@ -184,6 +190,16 @@ def check_vault(root: Path, args) -> dict:
             print(f"  Raw references: {raw_changes} reference(s) wikilinked in "
                   f"{raw_files_changed} file(s).", file=sys.stderr)
 
+        log_pruned_kept, log_pruned_skipped, log_pruned_malformed, log_pruned_dupes = prune_log(
+            root, args.quiet
+        )
+        if not args.quiet and (log_pruned_skipped or log_pruned_malformed or log_pruned_dupes):
+            print(f"  Pruned log.jsonl: kept {log_pruned_kept}, "
+                  f"dropped {log_pruned_skipped} (missing file), "
+                  f"{log_pruned_dupes} duplicate(s), "
+                  f"{log_pruned_malformed} malformed. "
+                  f"Backup at wiki/log.jsonl.bak.", file=sys.stderr)
+
     removed_links = 0
     removed_files = 0
     if getattr(args, "remove_broken_links", False):
@@ -226,16 +242,26 @@ def check_vault(root: Path, args) -> dict:
         if raw_changes:
             summary["raw_refs_wikilinked"] = raw_changes
             summary["raw_refs_files_changed"] = raw_files_changed
+        if log_pruned_skipped or log_pruned_malformed or log_pruned_dupes:
+            summary["log_pruned_kept"] = log_pruned_kept
+            summary["log_pruned_dropped"] = log_pruned_skipped
+            if log_pruned_dupes:
+                summary["log_pruned_duplicates"] = log_pruned_dupes
+            if log_pruned_malformed:
+                summary["log_pruned_malformed"] = log_pruned_malformed
     if getattr(args, "remove_broken_links", False):
         summary["removed_links"] = removed_links
         summary["removed_files"] = removed_files
     if raw_refs_pending:
         summary["raw_refs_pending"] = raw_refs_pending
         summary["raw_refs_pending_files"] = raw_refs_pending_files
+    if log_pruned_pending:
+        summary["log_pruned_pending"] = log_pruned_pending
 
     return {
         "broken_links": broken,
         "summary": summary,
         "errors": errors,
         "raw_refs_pending": raw_refs_pending,
+        "log_pruned_pending": log_pruned_pending,
     }

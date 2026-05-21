@@ -20,6 +20,7 @@ from .colors import (
     init_pairs,
 )
 from .help import show_help
+from .keys import is_bare_escape
 from .popups import show_popup
 from .previews import show_preview
 from .search import show_search_dialog
@@ -169,8 +170,12 @@ def run_interactive(broken_links: list, orphans: list, stubs: list, root: Path) 
             redraw()
             key = stdscr.getch()
 
-            if key in (ord("q"), ord("Q"), 27):
+            if key in (ord("q"), ord("Q")):
                 break
+            elif key == 27:
+                if is_bare_escape(stdscr):
+                    break
+                continue  # consumed escape sequence (Option+Arrow, etc.)
             elif key in (ord("h"), ord("H")):
                 show_help(stdscr)
             elif key == curses.KEY_UP:
@@ -351,7 +356,25 @@ def run_interactive(broken_links: list, orphans: list, stubs: list, root: Path) 
     kept_orphans    = sum(1 for i, s in enumerate(states) if s == "kept" and all_items[i]["_kind"] == "orphan")
     kept_stubs      = sum(1 for i, s in enumerate(states) if s == "kept" and all_items[i]["_kind"] == "stub")
     skipped = n - sum(1 for s in states if s is not None)
-    print(f"\nSession complete: {deleted_links} links deleted, {broken_count} marked broken, "
-          f"{delinked_count} plain text, {replaced_count} replaced, "
-          f"{deleted_orphans} orphan pages deleted, {kept_orphans} orphans kept, "
-          f"{deleted_stubs} stub pages deleted, {kept_stubs} stubs resolved, {skipped} skipped.")
+    rows = [
+        ("Links deleted",        deleted_links),
+        ("Marked broken",        broken_count),
+        ("Converted to text",    delinked_count),
+        ("Replaced",             replaced_count),
+        ("Orphan pages deleted", deleted_orphans),
+        ("Orphans kept",         kept_orphans),
+        ("Stub pages deleted",   deleted_stubs),
+        ("Stubs resolved",       kept_stubs),
+        ("Skipped",              skipped),
+    ]
+    label_w = max(len(label) for label, _ in rows)
+    count_w = max(len(str(count)) for _, count in rows + [("Count", 0)])
+    count_w = max(count_w, len("Count"))
+    sep = f"+-{'-' * label_w}-+-{'-' * count_w}-+"
+    print("\nSession complete")
+    print(sep)
+    print(f"| {'Action':<{label_w}} | {'Count':>{count_w}} |")
+    print(sep)
+    for label, count in rows:
+        print(f"| {label:<{label_w}} | {count:>{count_w}} |")
+    print(sep)

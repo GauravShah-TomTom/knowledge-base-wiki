@@ -36,8 +36,8 @@ Examples:
   # Include external HTTP link checks:
   python3 wiki-lint-check.py --external --timeout 10
 
-  # Include image embeds in checks:
-  python3 wiki-lint-check.py --include-images
+  # Skip image embeds in checks (they're checked by default):
+  python3 wiki-lint-check.py --no-include-images
 
   # Skip frontmatter links (e.g. author: [[Name]] in raw/clips):
   python3 wiki-lint-check.py --skip-frontmatter
@@ -50,7 +50,7 @@ Examples:
   python3 wiki-lint-check.py --batch-mode --format text
 
   # Combine options:
-  python3 wiki-lint-check.py --external --include-images --skip-frontmatter --format text /path/to/vault
+  python3 wiki-lint-check.py --external --skip-frontmatter --format text /path/to/vault
         """,
     )
     parser.add_argument(
@@ -72,9 +72,11 @@ Examples:
         help="Timeout in seconds for external HTTP requests (default: 5)",
     )
     parser.add_argument(
-        "--include-images",
-        action="store_true",
-        help="Also check embedded image links (![[...]] and ![alt](...))",
+        "--no-include-images",
+        action="store_false",
+        dest="include_images",
+        default=True,
+        help="Skip image embed checks (![[...]] and ![alt](...)). Embeds are checked by default.",
     )
     parser.add_argument(
         "--format",
@@ -103,9 +105,12 @@ Examples:
         action="store_true",
         dest="fix_simple_errors",
         help=(
-            "Rewrite broken WikiLinks where a unique normalized match is found. "
-            "Characters like ':' are often replaced by '_' in filenames or omitted "
-            "in link text; this flag repairs such mismatches in-place."
+            "Rewrite broken WikiLinks where a unique normalized match is found "
+            "(characters like ':' are often replaced by '_' in filenames or omitted "
+            "in link text); normalize curly quotes; wikilink bare/backticked raw/ "
+            "references; and prune wiki/log.jsonl in place (backup at "
+            "wiki/log.jsonl.bak), dropping entries whose 'file' no longer exists "
+            "and collapsing duplicate entries for the same file (keeping the latest)."
         ),
     )
     parser.add_argument(
@@ -172,6 +177,7 @@ def main():
                 any("suggested_fix" in b for b in result["broken_links"])
                 or bool(result.get("orphans"))
                 or result.get("raw_refs_pending", 0) > 0
+                or result.get("log_pruned_pending", 0) > 0
             )
             if has_fixable:
                 auto_fix_applied = ask_run_auto_fixes()
